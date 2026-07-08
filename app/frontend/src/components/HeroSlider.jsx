@@ -157,7 +157,7 @@ export default function HeroSlider() {
       <Link
         data-testid="hero-book"
         to="/reserve"
-        className="ripple absolute top-1/2 right-4 sm:right-8 z-20 -translate-y-1/2 w-20 h-20 sm:w-28 sm:h-28 bg-gold text-black rounded-full flex flex-col items-center justify-center text-[8px] sm:text-[10px] font-bold uppercase tracking-widest hover:scale-105 transition-transform shadow-2xl shadow-gold/30"
+        className="ripple absolute bottom-4 right-4 sm:right-8 z-20 w-20 h-20 sm:w-24 sm:h-24 bg-gold text-black rounded-full flex flex-col items-center justify-center text-[8px] sm:text-[10px] font-bold uppercase tracking-widest hover:scale-105 transition-transform shadow-2xl shadow-gold/30"
       >
         Book<br />A Table
       </Link>
