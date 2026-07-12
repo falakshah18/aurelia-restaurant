@@ -45,6 +45,8 @@ export default function Navbar() {
   const moreLinks = [
     { to: "/team", label: "Chef" },
     { to: "/private-dining", label: "Events" },
+    { to: "/journal", label: "Journal" },
+    { to: "/sustainability", label: "Sustainability" },
     { to: "/waitlist", label: "Waitlist" },
     { to: "/contact", label: "Contact" },
     { to: "/feedback", label: "Feedback" },
@@ -55,7 +57,7 @@ export default function Navbar() {
       <header
         data-testid="site-header"
         className={`site-header fixed top-0 left-0 right-0 z-40 transition-all duration-500 ${
-          scrolled ? "backdrop-blur-xl bg-[#0E0D0C]/85 border-b border-[#2A2723] py-4 shrunk" : "py-6"
+          scrolled ? "backdrop-blur-xl border-b py-4 shrunk" : "py-6"
         } ${hidden ? "nav-hidden" : ""}`}
       >
         <div className="max-w-7xl mx-auto px-5 sm:px-8 flex items-center justify-between gap-4">
@@ -127,7 +129,7 @@ export default function Navbar() {
                 <Link data-testid="nav-login" to="/login" className="text-base uppercase tracking-[0.2em] hover:text-gold whitespace-nowrap">
                   Log In
                 </Link>
-                <Link data-testid="nav-reserve-cta" to="/reserve" className="btn-gold btn-gold-solid breathe whitespace-nowrap">
+                <Link data-testid="nav-reserve-cta" to="/reserve" className="btn-gold btn-gold-solid breathe whitespace-nowrap" style={{ fontSize: "18px", padding: "18px 44px" }}>
                   <span>Find A Table</span>
                 </Link>
               </div>
@@ -148,7 +150,8 @@ export default function Navbar() {
       <button
         type="button"
         onClick={() => setHidden(false)}
-        className={`nav-reveal fixed top-3 right-4 z-50 w-11 h-11 place-items-center border border-gold bg-[#0E0D0C]/90 text-gold backdrop-blur-lg transition-all duration-500 ${
+        style={{ backgroundColor: "var(--nav-bg, rgba(14,13,12,0.9))" }}
+        className={`nav-reveal fixed top-3 right-4 z-50 w-11 h-11 place-items-center border border-gold text-gold backdrop-blur-lg transition-all duration-500 ${
           hidden ? "grid opacity-100 translate-y-0" : "grid opacity-0 -translate-y-8 pointer-events-none"
         }`}
         aria-label="Show navigation"
@@ -164,7 +167,8 @@ export default function Navbar() {
       >
         <div onClick={() => setOpen(false)} className="absolute inset-0 bg-black/80" />
         <div
-          className={`absolute top-0 right-0 h-full w-[85%] max-w-sm bg-[#0E0D0C] border-l border-[#2A2723] p-8 transition-transform duration-500 ${
+          style={{ backgroundColor: "var(--bg, #0E0D0C)", borderColor: "var(--card-border, #2A2723)" }}
+          className={`absolute top-0 right-0 h-full w-[85%] max-w-sm border-l p-8 transition-transform duration-500 ${
             open ? "translate-x-0" : "translate-x-full"
           }`}
         >

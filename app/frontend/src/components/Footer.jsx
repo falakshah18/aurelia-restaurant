@@ -2,12 +2,12 @@ import { Link } from "react-router-dom";
 
 export default function Footer() {
   return (
-    <footer data-testid="site-footer" className="relative bg-[#0E0D0C] pt-24 pb-10 border-t border-[#2A2723]">
+    <footer data-testid="site-footer" className="relative pt-24 pb-10 border-t" style={{ backgroundColor: "var(--bg, #0E0D0C)", borderColor: "var(--card-border, #2A2723)" }}>
       <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-16 items-start">
         <div>
           <span className="font-forum text-4xl text-gold tracking-widest">AURELIA</span>
           <p className="mt-4 text-sm text-white/60 leading-relaxed">
-            Restaurant St, Delicious City,<br /> London 9578, UK
+            Restaurant St, Ahmedabad 380001,<br /> Gujarat, India
           </p>
           <a href="mailto:booking@aurelia.com" className="block mt-3 text-base hover-underline">
             booking@aurelia.com
@@ -43,6 +43,8 @@ export default function Footer() {
             <li><Link to="/menu" className="hover-underline">Menu</Link></li>
             <li><Link to="/about" className="hover-underline">About</Link></li>
             <li><Link to="/reserve" className="hover-underline">Reserve</Link></li>
+            <li><Link to="/journal" className="hover-underline">Journal</Link></li>
+            <li><Link to="/sustainability" className="hover-underline">Sustainability</Link></li>
             <li><Link to="/contact" className="hover-underline">Contact</Link></li>
           </ul>
         </div>

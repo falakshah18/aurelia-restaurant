@@ -33,11 +33,11 @@ export default function CursorTrail() {
       snapTimer = setTimeout(snapToButtons, 300);
     };
 
+    const resizeCombo = () => { resize(); scheduleSnap(); };
     snapToButtons();
-    window.addEventListener("resize", () => { resize(); scheduleSnap(); });
+    window.addEventListener("resize", resizeCombo);
     window.addEventListener("mousemove", onMouse);
     window.addEventListener("scroll", scheduleSnap);
-    document.addEventListener("DOMContentLoaded", scheduleSnap);
     const obs = new MutationObserver(scheduleSnap);
     obs.observe(document.body, { childList: true, subtree: true });
 
@@ -88,7 +88,7 @@ export default function CursorTrail() {
     raf = requestAnimationFrame(frame);
     return () => {
       cancelAnimationFrame(raf);
-      window.removeEventListener("resize", resize);
+      window.removeEventListener("resize", resizeCombo);
       window.removeEventListener("mousemove", onMouse);
       window.removeEventListener("scroll", scheduleSnap);
       obs.disconnect();

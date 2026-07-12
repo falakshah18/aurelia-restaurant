@@ -5,49 +5,59 @@ import { API } from "@/lib/api";
 function sid() {
   const key = "aurelia_chat_sid";
   let v = localStorage.getItem(key);
-  if (!v) {
-    v = crypto.randomUUID();
-    localStorage.setItem(key, v);
-  }
+  if (!v) { v = crypto.randomUUID(); localStorage.setItem(key, v); }
   return v;
 }
 
 export default function Chatbot() {
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState([
-    { role: "bot", text: "Welcome to Aurelia. I'm your concierge — ask me about the menu or reservations." },
+    { role: "bot", text: "Welcome to Aurelia ✦ I'm your concierge — ask me about the menu, reservations, or anything about our restaurant." },
   ]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
   const scRef = useRef();
+  const inputRef = useRef();
+  const abortRef = useRef(null);
 
+  // Auto-scroll to bottom on new messages
   useEffect(() => {
     if (scRef.current) scRef.current.scrollTop = scRef.current.scrollHeight;
-  }, [msgs, open]);
+  }, [msgs]);
+
+  // Focus input when opened
+  useEffect(() => {
+    if (open && inputRef.current) setTimeout(() => inputRef.current.focus(), 150);
+  }, [open]);
+
+  useEffect(() => {
+    return () => { if (abortRef.current) abortRef.current.abort(); };
+  }, []);
 
   const send = async () => {
     const t = text.trim();
     if (!t || busy) return;
+    if (abortRef.current) abortRef.current.abort();
     setText("");
     setMsgs((m) => [...m, { role: "user", text: t }, { role: "bot", text: "" }]);
     setBusy(true);
+    const controller = new AbortController();
+    abortRef.current = controller;
 
     try {
+      const history = [...msgs, { role: "user", text: t }]
+        .filter((m) => m.text)
+        .slice(-10)
+        .map((m) => ({ role: m.role, text: m.text }));
+
       const res = await fetch(`${API}/chatbot`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ session_id: sid(), message: t }),
+        body: JSON.stringify({ session_id: sid(), message: t, history }),
+        signal: controller.signal,
       });
-
-      if (!res.ok) {
-        throw new Error(`Server error: ${res.status}`);
-      }
-
-      if (!res.body) {
-        throw new Error("Empty response body");
-      }
-
+      if (!res.ok) throw new Error(`${res.status}`);
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let acc = "";
@@ -61,10 +71,11 @@ export default function Chatbot() {
           return copy;
         });
       }
-    } catch {
+    } catch (err) {
+      if (err.name === "AbortError") return;
       setMsgs((m) => {
         const copy = [...m];
-        copy[copy.length - 1] = { role: "bot", text: "Sorry, I couldn't reach the kitchen right now." };
+        copy[copy.length - 1] = { role: "bot", text: "Sorry, I couldn't reach the kitchen right now. Please call us at +88-123-123456." };
         return copy;
       });
     } finally {
@@ -74,56 +85,88 @@ export default function Chatbot() {
 
   return (
     <>
+      {/* Toggle button — bottom RIGHT, above audio button */}
       <button
         data-testid="chatbot-toggle"
         onClick={() => setOpen((v) => !v)}
-        className="fixed bottom-6 left-6 z-40 w-14 h-14 rounded-full bg-gold text-black grid place-items-center shadow-xl hover:scale-110 transition-transform"
-        aria-label="chat with Aurelia"
+        aria-label={open ? "Close chat" : "Open chat"}
+        className="fixed bottom-20 right-6 z-50 w-14 h-14 rounded-full bg-gold text-black grid place-items-center shadow-2xl hover:scale-110 active:scale-95 transition-transform"
       >
         {open ? <X size={22} /> : <MessageCircle size={22} />}
       </button>
 
+      {/* Chat panel — opens above the toggle button */}
       <div
         data-testid="chatbot-panel"
-        className={`fixed z-40 bottom-24 left-6 w-[92vw] max-w-sm h-[520px] bg-[#161412] border border-[#2A2723] shadow-2xl flex flex-col transition-all duration-[400ms] ${
-          open ? "opacity-100 translate-y-0 pointer-events-auto" : "opacity-0 translate-y-4 pointer-events-none"
+        className={`fixed z-50 right-6 w-[92vw] max-w-[360px] bg-[#161412] border border-[#2A2723] shadow-2xl flex flex-col transition-all duration-300 ${
+          open
+            ? "opacity-100 pointer-events-auto"
+            : "opacity-0 pointer-events-none"
         }`}
+        style={{
+          bottom: "154px",
+          height: "480px",
+          transform: open ? "translateY(0) scale(1)" : "translateY(16px) scale(0.97)",
+          transformOrigin: "bottom right",
+        }}
       >
-        <div className="p-4 border-b border-[#2A2723] flex items-center justify-between">
-          <div>
-            <p className="font-forum text-xl text-gold">Aurelia</p>
-            <p className="text-[10px] uppercase tracking-widest text-white/50">AI Concierge</p>
+        {/* Header */}
+        <div className="flex items-center justify-between px-4 py-3 border-b border-[#2A2723] bg-[#0E0D0C] shrink-0">
+          <div className="flex items-center gap-3">
+            <div className="w-8 h-8 rounded-full bg-gold/20 border border-gold/40 flex items-center justify-center">
+              <span className="text-gold text-xs font-bold">A</span>
+            </div>
+            <div>
+              <p className="font-forum text-base text-gold leading-none">Aurelia</p>
+              <p className="text-[10px] uppercase tracking-widest text-white/40">AI Concierge • Online</p>
+            </div>
           </div>
-          <span className="text-[10px] px-2 py-1 border border-gold text-gold uppercase tracking-widest">Online</span>
+          {/* Close X button inside the panel header */}
+          <button
+            onClick={() => setOpen(false)}
+            aria-label="Close chat"
+            className="w-8 h-8 flex items-center justify-center text-white/40 hover:text-gold hover:bg-gold/10 transition-colors rounded-full"
+          >
+            <X size={16} />
+          </button>
         </div>
-        <div ref={scRef} className="flex-1 overflow-y-auto p-4 space-y-3">
+
+        {/* Messages */}
+        <div ref={scRef} className="flex-1 overflow-y-auto px-4 py-3 space-y-3 no-scrollbar">
           {msgs.map((m, i) => (
-            <div
-              key={i}
-              className={`max-w-[85%] px-3 py-2 text-sm leading-relaxed ${
-                m.role === "user" ? "ml-auto chat-msg-user text-white" : "chat-msg-bot text-white/90"
-              }`}
-            >
-              {m.text || <span className="opacity-60">…</span>}
+            <div key={i} className={`flex ${m.role === "user" ? "justify-end" : "justify-start"}`}>
+              <div
+                className={`max-w-[85%] px-3 py-2 text-sm leading-relaxed rounded-sm ${
+                  m.role === "user"
+                    ? "bg-gold text-black font-medium"
+                    : "bg-[#0E0D0C] border border-[#2A2723] text-white/90"
+                }`}
+              >
+                {m.text || <span className="opacity-40 animate-pulse">●●●</span>}
+              </div>
             </div>
           ))}
         </div>
-        <div className="p-3 border-t border-[#2A2723] flex gap-2">
+
+        {/* Input */}
+        <div className="px-3 py-3 border-t border-[#2A2723] flex gap-2 shrink-0 bg-[#0E0D0C]">
           <input
             data-testid="chatbot-input"
+            ref={inputRef}
             value={text}
             onChange={(e) => setText(e.target.value)}
-            onKeyDown={(e) => e.key === "Enter" && send()}
+            onKeyDown={(e) => e.key === "Enter" && !e.shiftKey && send()}
             placeholder="Ask about our menu…"
-            className="input-dark flex-1"
+            disabled={busy}
+            className="flex-1 bg-[#161412] border border-[#2A2723] px-4 py-2.5 text-white text-sm placeholder-white/30 focus:border-gold focus:outline-none transition-colors disabled:opacity-50"
           />
           <button
             data-testid="chatbot-send"
             onClick={send}
-            disabled={busy}
-            className="bg-gold text-black px-4 grid place-items-center disabled:opacity-50"
+            disabled={busy || !text.trim()}
+            className="bg-gold text-black w-10 h-10 flex items-center justify-center disabled:opacity-40 hover:bg-gold/90 transition-colors shrink-0"
           >
-            <Send size={16} />
+            <Send size={15} />
           </button>
         </div>
       </div>

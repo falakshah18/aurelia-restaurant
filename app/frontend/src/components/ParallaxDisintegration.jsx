@@ -9,6 +9,7 @@ export default function ParallaxDisintegration() {
   useEffect(() => {
     const el = mountRef.current;
     if (!el) return;
+    let disposed = false;
     const w = window.innerWidth;
     const h = window.innerHeight;
 
@@ -22,7 +23,7 @@ export default function ParallaxDisintegration() {
 
     const img = new Image();
     img.crossOrigin = "anonymous";
-    img.src = "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=60";
+    img.src = "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=1200&q=60";
 
     const NUM = 2500;
     let particles = [];
@@ -30,6 +31,7 @@ export default function ParallaxDisintegration() {
     let colors;
 
     img.onload = () => {
+      if (disposed) return;
       const c = document.createElement("canvas");
       c.width = 200;
       c.height = 150;
@@ -137,9 +139,17 @@ export default function ParallaxDisintegration() {
     window.addEventListener("resize", onResize);
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(raf);
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
+      const s = sceneRef.current;
+      if (s) {
+        s.geo.dispose();
+        s.mat.dispose();
+        scene.remove(s.mesh);
+        sceneRef.current = null;
+      }
       renderer.dispose();
       if (el.contains(renderer.domElement)) el.removeChild(renderer.domElement);
     };

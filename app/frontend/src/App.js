@@ -1,8 +1,8 @@
 import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
-import { useEffect } from "react";
+import { useEffect, useMemo } from "react";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
-import { ThemeProvider, useTheme } from "@/context/ThemeContext";
+import { ThemeProvider } from "@/context/ThemeContext";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Preloader from "@/components/Preloader";
@@ -26,6 +26,8 @@ import Register from "@/pages/Register";
 import Admin from "@/pages/Admin";
 import TeamPage from "@/pages/TeamPage";
 import RestaurantInfoPage, { restaurantPages } from "@/pages/RestaurantInfoPage";
+import JournalPage from "@/pages/JournalPage";
+import SustainabilityPage from "@/pages/SustainabilityPage";
 import WaitlistPage from "@/pages/WaitlistPage";
 import FeedbackPage from "@/pages/FeedbackPage";
 
@@ -37,9 +39,27 @@ function ScrollToTop() {
 
 function GlobalRippleHandler() {
   useEffect(() => {
-    const handler = (e) => {
+    const fadeObserver = new IntersectionObserver(
+      (entries) => {
+        entries.forEach((e) => {
+          if (e.isIntersecting) {
+            e.target.classList.add("in");
+            fadeObserver.unobserve(e.target);
+          }
+        });
+      },
+      { threshold: 0.12 }
+    );
+    document.querySelectorAll(".fade-up").forEach((el) => fadeObserver.observe(el));
+
+    const scanFadeUps = () => {
+      document.querySelectorAll(".fade-up:not(.in)").forEach((el) => fadeObserver.observe(el));
+    };
+    const domObserver = new MutationObserver(scanFadeUps);
+    domObserver.observe(document.body, { childList: true, subtree: true });
+
+    const rippleHandler = (e) => {
       const btn = e.currentTarget;
-      if (btn.classList.contains("ripple")) return;
       const rect = btn.getBoundingClientRect();
       const ripple = document.createElement("span");
       ripple.className = "ripple-wave";
@@ -50,30 +70,23 @@ function GlobalRippleHandler() {
       btn.appendChild(ripple);
       setTimeout(() => ripple.remove(), 650);
     };
-    const observer = new MutationObserver(() => {
-      document.querySelectorAll("button:not(.no-ripple), a:not(.no-ripple)").forEach((el) => {
-        if (!el.dataset.rippleAttached) {
-          el.dataset.rippleAttached = "1";
-          el.classList.add("ripple");
-          el.addEventListener("click", handler);
-        }
-      });
-    });
-    observer.observe(document.body, { childList: true, subtree: true });
-    document.querySelectorAll("button:not(.no-ripple), a:not(.no-ripple)").forEach((el) => {
-      if (!el.dataset.rippleAttached) {
-        el.dataset.rippleAttached = "1";
-        el.classList.add("ripple");
-        el.addEventListener("click", handler);
-      }
-    });
-    return () => observer.disconnect();
+    const rippleDelegate = (e) => {
+      const btn = e.target.closest("button:not(.no-ripple), a:not(.no-ripple)");
+      if (btn) rippleHandler({ ...e, currentTarget: btn });
+    };
+    document.addEventListener("click", rippleDelegate, { capture: true });
+
+    return () => {
+      fadeObserver.disconnect();
+      domObserver.disconnect();
+      document.removeEventListener("click", rippleDelegate, { capture: true });
+    };
   }, []);
   return null;
 }
 
 function GlobalFeatures() {
-  const { muted, toggleMute } = useAmbientAudio();
+  const { muted, toggleMute, volume, changeVolume, playNoise } = useAmbientAudio();
   usePredictivePreload();
 
   return (
@@ -82,36 +95,8 @@ function GlobalFeatures() {
       <ScrollRing />
       <Dish3DViewer />
       <MoodDetector />
-      <AudioMuteBtn muted={muted} onToggle={toggleMute} />
+      <AudioMuteBtn muted={muted} onToggle={toggleMute} volume={volume} onChangeVolume={changeVolume} playNoise={playNoise} />
     </>
-  );
-}
-
-function ThemeDots() {
-  const { theme, switchTheme, themes } = useTheme();
-  if (!themes) return null;
-  return (
-    <div className="theme-switcher">
-      {themes.map((t) => (
-        <button
-          key={t.label}
-          onClick={() => switchTheme(t.label)}
-          className={`theme-dot ${theme.label === t.label ? "active" : ""}`}
-          style={{
-            backgroundColor: t.vars["--gold"],
-          }}
-          title={t.label}
-        />
-      ))}
-      <button
-        onClick={() => switchTheme("auto")}
-        className="theme-dot"
-        style={{ borderStyle: "dashed" }}
-        title="Auto"
-      >
-        <span style={{ fontSize: 10, display: "grid", placeItems: "center", width: "100%", height: "100%" }}>A</span>
-      </button>
-    </div>
   );
 }
 
@@ -120,7 +105,7 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <ThemeProvider>
-          <div id="theme-root" className="min-h-screen text-white" style={{ backgroundColor: "var(--bg)", color: "var(--text)" }}>
+          <div className="min-h-screen text-white" style={{ backgroundColor: "var(--bg)", color: "var(--text)" }}>
             <LiquidGlass />
             <GlobalRippleHandler />
             <Preloader />
@@ -138,7 +123,10 @@ function App() {
                 <Route path="/team" element={<TeamPage />} />
                 <Route path="/waitlist" element={<WaitlistPage />} />
                 <Route path="/feedback" element={<FeedbackPage />} />
-                {restaurantPages.filter((p) => p.to !== "/team").map((page) => (
+                <Route path="/journal" element={<JournalPage />} />
+                <Route path="/journal/:id" element={<JournalPage />} />
+                <Route path="/sustainability" element={<SustainabilityPage />} />
+                {restaurantPages.filter((p) => p.to !== "/team" && p.to !== "/journal" && p.to !== "/sustainability").map((page) => (
                   <Route
                     key={page.to}
                     path={page.to}
@@ -158,7 +146,6 @@ function App() {
             <Footer />
             <Chatbot />
             <GlobalFeatures />
-            <ThemeDots />
             <Toaster theme="dark" position="top-right" richColors />
           </div>
         </ThemeProvider>

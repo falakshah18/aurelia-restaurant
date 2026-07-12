@@ -11,7 +11,7 @@ const fallbackItems = [
     price: 595,
     badge: "Fresh",
     description: "Creamy burrata, basil oil, aged balsamic, sea salt, and toasted sourdough.",
-    image: "https://images.unsplash.com/photo-1608897013039-887f21d8c804?w=320&q=85",
+    image: "https://images.unsplash.com/photo-1546241072-48010ad2862c?w=320&q=85",
   },
   {
     id: "starter-2",
@@ -28,7 +28,7 @@ const fallbackItems = [
     price: 895,
     badge: "Signature",
     description: "Wood-fired crust, wild mushrooms, fontina, black truffle cream, and thyme.",
-    image: "https://images.unsplash.com/photo-1603073163308-9654c3fb70b5?w=320&q=85",
+    image: "https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=320&q=85",
   },
   {
     id: "pizza-2",
@@ -61,7 +61,7 @@ const fallbackItems = [
     name: "Roasted Cauliflower Steak",
     price: 845,
     description: "Herb-crusted cauliflower, romesco sauce, almond gremolata, and micro greens.",
-    image: "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=320&q=85",
+    image: "https://images.unsplash.com/photo-1580822184713-fc5400e7fe10?w=320&q=85",
   },
   {
     id: "dessert-1",
@@ -70,15 +70,15 @@ const fallbackItems = [
     price: 545,
     badge: "Sweet",
     description: "Whipped honey cream, almond crumble, roasted figs, and espresso syrup.",
-    image: "https://images.unsplash.com/photo-1509043759401-537742b608eb?w=320&q=85",
+    image: "https://images.unsplash.com/photo-1488477181946-6428a0291777?w=320&q=85",
   },
   {
     id: "drink-1",
     category: "Drinks",
     name: "Fig & Rosemary Spritz",
     price: 645,
-    description: "Fig cordial, rosemary, prosecco, citrus, and a clean bitter finish.",
-    image: "https://images.unsplash.com/photo-1470337458703-46ad1756a187?w=320&q=85",
+    description: "Fig cordial, rosemary, sparkling water, citrus, and a clean bitter finish.",
+    image: "https://images.unsplash.com/photo-1546173159-315724a31696?w=320&q=85",
   },
 ];
 
@@ -121,7 +121,7 @@ export default function MenuPage() {
         </p>
 
         <div className="menu-spotlight mb-16 text-left">
-          <img src={heroItem.image} alt={heroItem.name} />
+          <img src={heroItem.image} alt={heroItem.name} loading="eager" />
           <div>
             <p className="text-gold text-xs font-bold tracking-[0.35em] uppercase">Tonight's Highlight</p>
             <h2 className="font-forum text-5xl mt-3 mb-4">{heroItem.name}</h2>
@@ -156,6 +156,7 @@ export default function MenuPage() {
                 <img
                   src={m.image || "https://images.unsplash.com/photo-1546241072-48010ad2862c?w=320&q=80"}
                   alt={m.name}
+                  loading="lazy"
                 />
               </div>
               <div className="p-6">

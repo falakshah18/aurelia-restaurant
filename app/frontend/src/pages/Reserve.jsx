@@ -1,6 +1,7 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
+import { ChevronLeft, ChevronRight } from "lucide-react";
 
 const times = ["07:00pm", "07:30pm", "08:00pm", "08:30pm", "09:00pm", "09:30pm"];
 
@@ -24,6 +25,38 @@ export default function Reserve() {
   });
   const [selectedTable, setSelectedTable] = useState(null);
   const [busy, setBusy] = useState(false);
+  const [calOpen, setCalOpen] = useState(false);
+  const [calMonth, setCalMonth] = useState(() => {
+    const d = new Date();
+    return { year: d.getFullYear(), month: d.getMonth() };
+  });
+
+  const calDays = useMemo(() => {
+    const { year, month } = calMonth;
+    const firstDay = new Date(year, month, 1).getDay();
+    const daysInMonth = new Date(year, month + 1, 0).getDate();
+    const cells = [];
+    for (let i = 0; i < firstDay; i++) cells.push(null);
+    for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+    return cells;
+  }, [calMonth]);
+
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr + "T00:00:00");
+    return d.toLocaleDateString("en-US", { weekday: "short", year: "numeric", month: "short", day: "numeric" });
+  };
+
+  const pickDate = (day) => {
+    if (!day) return;
+    const { year, month } = calMonth;
+    const mm = String(month + 1).padStart(2, "0");
+    const dd = String(day).padStart(2, "0");
+    setF({ ...f, date: `${year}-${mm}-${dd}` });
+    setCalOpen(false);
+  };
 
   const submit = async (e) => {
     e.preventDefault();
@@ -178,14 +211,69 @@ export default function Reserve() {
                 </div>
                 <div>
                   <label className="vintage-label">Departure Date</label>
-                  <input
-                    data-testid="res-date"
-                    required
-                    type="date"
-                    className="vintage-field"
-                    value={f.date}
-                    onChange={(e) => setF({ ...f, date: e.target.value })}
-                  />
+                  <div className="relative">
+                    <button
+                      type="button"
+                      data-testid="res-date"
+                      onClick={() => setCalOpen(!calOpen)}
+                      className="vintage-field text-left w-full cursor-pointer"
+                    >
+                      {f.date ? formatDate(f.date) : "Select a date"}
+                    </button>
+                    {calOpen && (
+                      <div className="absolute z-50 mt-2 bg-[#1a1816] border border-[#2A2723] p-4 shadow-2xl w-full">
+                        <div className="flex items-center justify-between mb-3">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (calMonth.month === 0) setCalMonth({ year: calMonth.year - 1, month: 11 });
+                              else setCalMonth({ ...calMonth, month: calMonth.month - 1 });
+                            }}
+                            className="text-gold hover:text-white transition-colors"
+                          >
+                            <ChevronLeft size={18} />
+                          </button>
+                          <span className="text-gold text-sm tracking-widest font-bold uppercase">
+                            {MONTHS[calMonth.month]} {calMonth.year}
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              if (calMonth.month === 11) setCalMonth({ year: calMonth.year + 1, month: 0 });
+                              else setCalMonth({ ...calMonth, month: calMonth.month + 1 });
+                            }}
+                            className="text-gold hover:text-white transition-colors"
+                          >
+                            <ChevronRight size={18} />
+                          </button>
+                        </div>
+                        <div className="grid grid-cols-7 gap-1 text-center mb-2">
+                          {["Su","Mo","Tu","We","Th","Fr","Sa"].map((d) => (
+                            <span key={d} className="text-[10px] text-white/40 tracking-widest font-bold">{d}</span>
+                          ))}
+                        </div>
+                        <div className="grid grid-cols-7 gap-1">
+                          {calDays.map((day, idx) => {
+                            const dateStr = day ? `${calMonth.year}-${String(calMonth.month+1).padStart(2,"0")}-${String(day).padStart(2,"0")}` : "";
+                            const isSelected = f.date === dateStr;
+                            const isPast = day && new Date(dateStr + "T00:00:00") < new Date(new Date().toDateString());
+                            return (
+                              <button
+                                key={idx}
+                                type="button"
+                                disabled={!day || isPast}
+                                onClick={() => pickDate(day)}
+                                className={`w-full aspect-square flex items-center justify-center text-xs transition-all
+                                  ${!day ? "" : isPast ? "text-white/15 cursor-not-allowed" : isSelected ? "bg-gold text-black font-bold" : "text-white/70 hover:bg-gold/20 hover:text-gold cursor-pointer"}`}
+                              >
+                                {day || ""}
+                              </button>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </div>
                 <div>
                   <label className="vintage-label">Boarding Time</label>

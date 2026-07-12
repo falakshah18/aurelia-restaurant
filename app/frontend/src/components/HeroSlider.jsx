@@ -10,13 +10,13 @@ const slides = [
     text: "Farm-fresh ingredients crafted into memorable plant-forward dishes.",
   },
   {
-    img: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1880&q=85",
+    img: "https://images.unsplash.com/photo-1490645935967-10de6ba17061?w=1880&q=85",
     subtitle: "A Delightful Experience",
     title: ["Flavors inspired by", "the seasons"],
     text: "Every dish celebrates the best of each season's harvest.",
   },
   {
-    img: "https://images.unsplash.com/photo-1552566626-52f8b828add9?w=1880&q=85",
+    img: "https://images.unsplash.com/photo-1546069901-ba9599a7e63c?w=1880&q=85",
     subtitle: "Elegant & Welcoming",
     title: ["Where every plate", "tells a story"],
     text: "Curated pairings and warm ambience for a perfect evening.",
@@ -118,7 +118,6 @@ export default function HeroSlider() {
           </div>
           <div className="relative z-10 h-full flex flex-col items-center justify-center text-center px-6">
             <p className="text-gold text-xs font-bold tracking-[0.35em] uppercase mb-4 reveal">{s.subtitle}</p>
-            <span className="diamond mb-6 reveal reveal-delay-1" />
             <h1 className="font-forum text-5xl sm:text-7xl lg:text-8xl leading-[1] mb-6 max-w-4xl gold-shimmer">
               {s.title[0]}<br />{s.title[1]}
             </h1>
@@ -134,7 +133,7 @@ export default function HeroSlider() {
 
       <div className="hero-pizza" aria-hidden="true">
         <img
-          src="https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=420&q=85"
+          src="https://images.unsplash.com/photo-1565299624946-b28f40a0ae38?w=800&q=85"
           alt=""
         />
       </div>
@@ -154,13 +153,7 @@ export default function HeroSlider() {
         <ChevronRight className="-rotate-45" />
       </button>
 
-      <Link
-        data-testid="hero-book"
-        to="/reserve"
-        className="ripple absolute bottom-4 right-4 sm:right-8 z-20 w-20 h-20 sm:w-24 sm:h-24 bg-gold text-black rounded-full flex flex-col items-center justify-center text-[8px] sm:text-[10px] font-bold uppercase tracking-widest hover:scale-105 transition-transform shadow-2xl shadow-gold/30"
-      >
-        Book<br />A Table
-      </Link>
+
     </section>
   );
 }

@@ -41,7 +41,7 @@ body {
   font-family: 'DM Sans', sans-serif;
   -webkit-font-smoothing: antialiased;
   overflow-x: hidden;
-  font-size: 16px;
+  font-size: 17px;
 }
 .no-scrollbar::-webkit-scrollbar { display: none; }
 .no-scrollbar { -ms-overflow-style: none; scrollbar-width: none; }
@@ -67,7 +67,7 @@ body {
   padding: 16px 38px;
   border: 1.5px solid hsl(38, 61%, 73%);
   color: hsl(38, 61%, 73%);
-  font-size: 15px;
+  font-size: 17px;
   font-weight: 700;
   letter-spacing: 0.2em;
   text-transform: uppercase;
@@ -819,10 +819,10 @@ input, textarea, select { background: transparent; }
   *,
   *::before,
   *::after {
-    animation-duration: 1ms !important;
+    animation-duration: 0s !important;
     animation-iteration-count: 1 !important;
     scroll-behavior: auto !important;
-    transition-duration: 1ms !important;
+    transition-duration: 0s !important;
   }
 }
 
@@ -986,10 +986,10 @@ input, textarea, select { background: transparent; }
 .site-header.shrunk .container { gap: 10px; }
 .site-header.shrunk .logo img { transform: scale(.86); transition: all 500ms ease; }
 .site-header.shrunk {
-  background: hsla(40,12%,5%,.6);
+  background: var(--nav-bg, hsla(40,12%,5%,.6));
   backdrop-filter: blur(14px) saturate(140%);
   -webkit-backdrop-filter: blur(14px) saturate(140%);
-  border-bottom: 1px solid var(--white-alpha-10);
+  border-bottom: 1px solid var(--card-border, var(--white-alpha-10));
 }
 
 /* ================================================
@@ -1387,28 +1387,6 @@ input, textarea, select { background: transparent; }
 #theme-root .bg-gold { background-color: var(--gold); color: var(--bg); }
 
 /* ================================================
-   #DAYPARTING THEME OVERRIDES
-   ================================================ */
-.theme-switcher {
-  position: fixed;
-  bottom: 24px;
-  right: 88px;
-  z-index: 40;
-  display: flex;
-  gap: 6px;
-}
-.theme-dot {
-  width: 20px;
-  height: 20px;
-  border-radius: 50%;
-  border: 2px solid rgba(255,255,255,0.15);
-  cursor: pointer;
-  transition: all 0.3s ease;
-}
-.theme-dot:hover,
-.theme-dot.active { border-color: hsl(38,61%,73%); transform: scale(1.2); }
-
-/* ================================================
    #AUDIO MUTE TOGGLE
    ================================================ */
 .audio-mute-btn {
@@ -1447,6 +1425,341 @@ input, textarea, select { background: transparent; }
 }
 
 /* ================================================
+   #TESTIMONIAL MARQUEE
+   ================================================ */
+@keyframes scrollLeft {
+  0% { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}
+.testimonial-track {
+  animation: scrollLeft 30s linear infinite;
+}
+.testimonial-track:hover {
+  animation-play-state: paused;
+}
+
+/* ================================================
+   #COUNTER STATS
+   ================================================ */
+.counter-animate {
+  animation: fadeIn 700ms ease both;
+}
+
+/* ================================================
+   #COUNT-UP NUMBER ANIMATION
+   ================================================ */
+@keyframes countUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.count-up {
+  animation: countUp 700ms ease both;
+}
+
+/* ================================================
+   #TIMELINE
+   ================================================ */
+.timeline-item {
+  position: relative;
+}
+
+/* Timeline line draw animation */
+.timeline-line {
+  background-size: 100% 200%;
+  animation: timelineDraw 3s ease forwards;
+}
+@keyframes timelineDraw {
+  0% { background-position: 0 100%; }
+  100% { background-position: 0 0; }
+}
+
+/* Timeline node pulse on enter */
+.timeline-item.in .w-5 {
+  animation: nodePulse 2s ease forwards;
+}
+@keyframes nodePulse {
+  0% { box-shadow: 0 0 0 0 hsla(38,61%,73%,0.4); }
+  70% { box-shadow: 0 0 0 12px hsla(38,61%,73%,0); }
+  100% { box-shadow: 0 0 0 0 hsla(38,61%,73%,0); }
+}
+
+/* Timeline card hover glow */
+.timeline-item.in > div:last-child > div {
+  box-shadow: 0 0 0 0 hsla(38,61%,73%,0);
+  transition: box-shadow 0.5s ease, border-color 0.5s ease;
+}
+.timeline-item.in > div:last-child > div:hover {
+  box-shadow: 0 4px 30px -4px hsla(38,61%,73%,0.15);
+}
+
+/* ================================================
+   #CARD SPARKLE (general, not just team-card)
+   ================================================ */
+.card-sparkle {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(circle at var(--mx, 50%) var(--my, 50%), rgba(228,197,144,0.12), transparent 60%);
+  opacity: 0;
+  transition: opacity 500ms ease;
+  z-index: 3;
+}
+.group:hover > .card-sparkle {
+  opacity: 1;
+}
+
+/* ================================================
+   #LOGIN PAGE
+   ================================================ */
+.login-glow {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 30%, rgba(228,197,144,0.1), transparent 60%);
+  pointer-events: none;
+}
+.login-split-left {
+  position: relative;
+  overflow: hidden;
+}
+.login-split-left::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(135deg, rgba(14,13,12,0.3), rgba(14,13,12,0.85));
+}
+
+/* Ken Burns slow zoom — 20s */
+@keyframes loginSlowZoom {
+  from { transform: scale(1); }
+  to { transform: scale(1.08); }
+}
+.login-ken-burns {
+  animation: loginSlowZoom 20s ease-in-out infinite alternate;
+}
+
+/* Staggered blur-up form reveal */
+
+/* Shake on wrong credentials */
+@keyframes loginShake {
+  0%, 100% { transform: translateX(0); }
+  20% { transform: translateX(-8px); }
+  40% { transform: translateX(8px); }
+  60% { transform: translateX(-5px); }
+  80% { transform: translateX(5px); }
+}
+.login-shake {
+  animation: loginShake 400ms ease;
+}
+
+/* Gold spinner */
+.login-spinner {
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  border: 2px solid hsl(38,61%,73%);
+  border-top-color: transparent;
+  border-radius: 50%;
+  animation: loginSpin 0.6s linear infinite;
+}
+@keyframes loginSpin {
+  to { transform: rotate(360deg); }
+}
+
+/* Luxury input fields */
+.login-input {
+  width: 100%;
+  background: transparent;
+  border: 1px solid rgba(228,197,144,0.2);
+  color: #fff;
+  padding: 14px 16px;
+  font-size: 15px;
+  font-family: 'DM Sans', sans-serif;
+  outline: none;
+  transition: border-color 300ms ease, box-shadow 300ms ease;
+}
+.login-input::placeholder { color: rgba(255,255,255,0.25); }
+.login-input:focus {
+  border-color: rgba(228,197,144,0.9);
+  box-shadow: 0 0 0 3px rgba(228,197,144,0.08);
+}
+.login-input-eye {
+  padding-right: 48px;
+}
+
+/* Error text */
+.login-error-text {
+  color: rgba(248,113,113,0.8);
+  font-size: 13px;
+  background: rgba(248,113,113,0.08);
+  border: 1px solid rgba(248,113,113,0.15);
+  padding: 10px 14px;
+}
+
+/* Google button */
+.login-google-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  padding: 14px;
+  background: #1A1816;
+  border: 1px solid rgba(228,197,144,0.25);
+  color: rgba(255,255,255,0.7);
+  font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: border-color 300ms ease, background-color 300ms ease;
+}
+.login-google-btn:hover {
+  border-color: rgba(228,197,144,0.6);
+  background: rgba(228,197,144,0.04);
+}
+
+/* Form card */
+.login-form-card {
+  position: relative;
+}
+
+/* Mobile hero strip */
+@media (max-width: 1023px) {
+  .login-ken-burns {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 220px;
+    object-fit: cover;
+    object-position: center 30%;
+  }
+}
+
+/* ================================================
    #TOUCH DEVICE FALLBACK
    ================================================ */
 
+
+/* ================================================
+   #RESPONSIVE FIXES & PERFORMANCE
+   ================================================ */
+
+/* Ensure images don't overflow on small screens */
+img {
+  max-width: 100%;
+  height: auto;
+}
+
+/* Mobile: hero text sizing */
+@media (max-width: 480px) {
+  .font-forum { font-size: clamp(14px, 4vw, 18px); }
+  h1.font-forum { font-size: clamp(36px, 12vw, 64px) !important; }
+  h2.font-forum { font-size: clamp(28px, 9vw, 48px) !important; }
+  .btn-gold { padding: 13px 26px; font-size: 13px; }
+  .hero-pizza { display: none; }
+}
+
+/* Mobile: fix the table map overflow */
+@media (max-width: 640px) {
+  .table-map-3d { perspective: 600px; }
+  .floor-plan { transform: rotateX(15deg); }
+}
+
+/* Mobile: menu spotlight stacks cleanly */
+@media (max-width: 640px) {
+  .menu-spotlight {
+    grid-template-columns: 1fr;
+    gap: 20px;
+    padding: 16px;
+  }
+  .menu-spotlight img {
+    clip-path: none;
+    aspect-ratio: 16/9;
+  }
+}
+
+/* Fix navbar overlap on reserve/contact pages */
+@media (max-width: 1024px) {
+  .vintage-reservation { padding-top: 120px; }
+}
+
+/* Smooth image loading — prevent layout shift */
+.menu-dish-image img,
+.menu-spotlight img,
+.blur-slide img,
+.hero-pizza img {
+  will-change: transform;
+}
+
+/* Fix: prevent long words breaking layout on mobile */
+h1, h2, h3, p {
+  overflow-wrap: break-word;
+  word-break: break-word;
+}
+
+/* Fix nav-more menu overlapping on medium screens */
+@media (max-width: 1280px) and (min-width: 1024px) {
+  .nav-more-menu {
+    left: auto;
+    right: 0;
+    transform: translateY(10px);
+  }
+  .nav-more:hover .nav-more-menu,
+  .nav-more:focus-within .nav-more-menu {
+    transform: translateY(0);
+  }
+}
+
+/* Reserve page: fix 3D floor-plan on mobile */
+@media (max-width: 768px) {
+  .table-map-3d .floor-plan {
+    transform: rotateX(0deg);
+  }
+  .table-item {
+    width: 44px;
+    height: 44px;
+    font-size: 8px;
+  }
+  .table-item.booth {
+    width: 62px;
+    height: 36px;
+  }
+}
+
+/* Fix footer newsletter input on mobile */
+@media (max-width: 480px) {
+  footer .flex { flex-direction: column; gap: 8px; }
+  footer .btn-gold { width: 100%; margin-left: 0; }
+  footer .input-dark { width: 100%; }
+}
+
+/* Gallery grid responsive */
+@media (max-width: 480px) {
+  .grid.grid-cols-2 { grid-template-columns: 1fr; }
+}
+
+/* Performance: GPU-accelerate only active animations */
+.slide.active { will-change: opacity; }
+.testimonial-track { will-change: transform; }
+
+/* Fix: blur-slider on very small screens */
+@media (max-width: 480px) {
+  .blur-slider {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+  .blur-slide { min-height: 260px; }
+}
+
+/* Fix: experience tabs wrapping gracefully */
+.experience-tab {
+  flex-shrink: 0;
+}
+
+/* Prevent hero canvas from being too heavy on low-end */
+@media (max-width: 480px) {
+  .hero-cinematic-canvas { opacity: 0.3; }
+  .liquid-glass { display: none; }
+}

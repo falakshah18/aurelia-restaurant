@@ -3,7 +3,7 @@ import { X, Camera, RotateCcw } from "lucide-react";
 
 const dishes = [
   { name: "Truffle Mushroom Risotto", img: "https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=85", desc: "Arborio rice, wild mushrooms, truffle oil, parmesan" },
-  { name: "Roasted Cauliflower Steak", img: "https://images.unsplash.com/photo-1565557623262-b51c2513a641?w=600&q=85", desc: "Herb-crusted, romesco, almond gremolata" },
+  { name: "Roasted Cauliflower Steak", img: "https://images.unsplash.com/photo-1580822184713-fc5400e7fe10?w=600&q=85", desc: "Herb-crusted, romesco, almond gremolata" },
   { name: "Herb Ricotta Ravioli", img: "https://images.unsplash.com/photo-1621996346565-e3dbc646d9a9?w=600&q=85", desc: "House-made, lemon zest, sage butter, pine nuts" },
 ];
 

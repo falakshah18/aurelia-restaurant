@@ -5,7 +5,7 @@ const pageContent = {
     eyebrow: "Our Team",
     title: "Meet The Chef",
     intro:
-      "Meet the people behind the fire: chefs, bakers, sommeliers, and hosts who shape every service with craft and calm.",
+      "Meet the people behind the fire: chefs, bakers, beverage experts, and hosts who shape every service with craft and calm.",
     image: "https://images.unsplash.com/photo-1577219491135-ce391730fb2c?w=1200&q=85",
     cta: "Book The Chef Counter",
     ctaTo: "/reserve",
@@ -17,7 +17,7 @@ const pageContent = {
     cards: [
       { title: "Chef Arman Vale", text: "Leads the kitchen with a focus on seasonal vegetables and wood-fired techniques." },
       { title: "Mira Stone", text: "Pastry chef behind the honey semifreddo, citrus tarts, and celebration cakes." },
-      { title: "Leo Hart", text: "Sommelier building thoughtful pairings from boutique and old-world producers." },
+      { title: "Leo Hart", text: "Beverage expert crafting thoughtful pairings from boutique and artisanal producers." },
     ],
   },
   "private-dining": {
@@ -44,7 +44,7 @@ const pageContent = {
     title: "Give A Table To Someone You Love",
     intro:
       "Shop digital gift cards, dining experiences, branded goods, and at-home meal kits from the Aurelia kitchen.",
-    image: "https://images.unsplash.com/photo-1519671282429-b44660ead0a7?w=1200&q=85",
+    image: "https://images.unsplash.com/photo-1504674900247-0877df9cc836?w=1200&q=85",
     cta: "Start Shopping",
     ctaTo: "/contact",
     highlights: ["Digital cards delivered instantly", "Physical cards packed for gifting", "Sauces, shirts, caps, and pizza kits"],
@@ -59,14 +59,14 @@ const pageContent = {
     title: "The Word Around The Table",
     intro:
       "A curated wall of reviews, awards, interviews, and press moments that tell the story of Aurelia's reputation.",
-    image: "https://images.unsplash.com/photo-1504711434969-e33886168f5c?w=1200&q=85",
+    image: "https://images.unsplash.com/photo-1414235077428-338989a2e8c0?w=1200&q=85",
     cta: "Contact Press",
     ctaTo: "/contact",
     highlights: ["Best New Dining Room finalist", "Featured in city food guides", "Chef interviews and podcast features"],
     cards: [
       { title: "City Table", text: "Praised Aurelia for precise service and quietly confident cooking." },
       { title: "Dining Weekly", text: "Named the tasting menu one of the season's most polished experiences." },
-      { title: "Hospitality Awards", text: "Recognized for wine service, private dining, and guest experience." },
+      { title: "Hospitality Awards", text: "Recognized for beverage service, private dining, and guest experience." },
     ],
   },
   sustainability: {
@@ -96,36 +96,36 @@ const pageContent = {
     cards: [
       { title: "Kitchen", text: "Prep cooks, line cooks, pastry assistants, and pizza station roles." },
       { title: "Dining Room", text: "Hosts, servers, runners, bartenders, and event staff." },
-      { title: "Leadership", text: "Sous chef, floor lead, wine lead, and private dining coordinator roles." },
+      { title: "Leadership", text: "Sous chef, floor lead, beverage lead, and private dining coordinator roles." },
     ],
   },
   faq: {
     eyebrow: "FAQ",
     title: "Useful Details Before You Arrive",
     intro:
-      "Quick answers for parking, dress code, allergies, corkage, cancellations, children, and large-party planning.",
-    image: "https://images.unsplash.com/photo-1528605248644-14dd04022da1?w=1200&q=85",
+      "Quick answers for parking, dress code, allergies, dietary requests, cancellations, children, and large-party planning.",
+    image: "https://images.unsplash.com/photo-1517248135467-4c7edcad34c4?w=1200&q=85",
     cta: "Ask A Question",
     ctaTo: "/contact",
     highlights: ["Smart casual dress", "Allergen-friendly planning with advance notice", "Reservations held for 15 minutes"],
     cards: [
       { title: "Parking", text: "Valet is available nightly; nearby garage validation is offered after 5 PM." },
       { title: "Allergies", text: "Tell us when booking so the kitchen can guide you safely." },
-      { title: "Corkage", text: "Limited corkage is available for special bottles not on our list." },
+      { title: "Dietary Requests", text: "We accommodate special dietary and beverage preferences with advance notice." },
     ],
   },
   journal: {
     eyebrow: "Journal",
     title: "Stories From The Kitchen",
     intro:
-      "Read chef notes, farm visits, wine-pairing ideas, holiday updates, and behind-the-scenes stories from service.",
+      "Read chef notes, farm visits, beverage pairing ideas, holiday updates, and behind-the-scenes stories from service.",
     image: "https://images.unsplash.com/photo-1498837167922-ddd27525d352?w=1200&q=85",
     cta: "Reserve A Table",
     ctaTo: "/reserve",
-    highlights: ["Seasonal recipe notes", "Farmer and producer stories", "Wine tasting and holiday updates"],
+      highlights: ["Seasonal recipe notes", "Farmer and producer stories", "Beverage tasting and holiday updates"],
     cards: [
       { title: "Tomato Season", text: "How late-summer tomatoes shape sauces, salads, and staff meal." },
-      { title: "Pairing Notes", text: "A sommelier guide to bright reds with wood-fired dishes." },
+      { title: "Pairing Notes", text: "A guide to pairing fresh mocktails with wood-fired dishes." },
       { title: "Behind Service", text: "The prep list, line check, and rituals before doors open." },
     ],
   },
