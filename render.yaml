@@ -39,7 +39,6 @@ services:
     runtime: static
     rootDir: app/frontend
     plan: free
-    region: oregon
     buildCommand: npm install && npm run build
     staticPublishPath: ./build
     envVars:
