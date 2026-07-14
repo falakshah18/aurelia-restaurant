@@ -30,7 +30,8 @@ export default function Contact() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post("/contact", f);
+      const message = f.subject ? `[${f.subject}]\n\n${f.message}` : f.message;
+      await api.post("/contact", { name: f.name, email: f.email, message });
       setTimeout(() => {
         toast.success("Message received — we'll respond within 24 hours.");
       }, 900);
@@ -151,6 +152,7 @@ export default function Contact() {
                     data-testid="contact-message"
                     placeholder="Tell us how we can help..."
                     rows={5}
+                    required
                     className="bg-[#0E0D0C] border border-[#2A2723] px-5 py-3.5 text-white placeholder-white/30 focus:border-gold focus:outline-none transition-colors w-full resize-none"
                     value={f.message}
                     onChange={(e) => setF({ ...f, message: e.target.value })}

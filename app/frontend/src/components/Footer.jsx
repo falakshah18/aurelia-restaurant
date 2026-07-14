@@ -1,6 +1,20 @@
+import { useState } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 export default function Footer() {
+  const [email, setEmail] = useState("");
+
+  const subscribe = (e) => {
+    e.preventDefault();
+    if (!email || !email.includes("@")) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+    toast.success("You're subscribed! Welcome to the Aurelia community.");
+    setEmail("");
+  };
+
   return (
     <footer data-testid="site-footer" className="relative pt-24 pb-10 border-t" style={{ backgroundColor: "var(--bg, #0E0D0C)", borderColor: "var(--card-border, #2A2723)" }}>
       <div className="max-w-7xl mx-auto px-6 grid md:grid-cols-3 gap-16 items-start">
@@ -23,11 +37,13 @@ export default function Footer() {
           <p className="mt-3 text-sm text-white/70">
             Subscribe & get <span className="text-gold">25% off</span> on your first reservation.
           </p>
-          <form className="mt-6 flex" onSubmit={(e) => e.preventDefault()}>
+          <form className="mt-6 flex" onSubmit={subscribe}>
             <input
               data-testid="footer-newsletter-input"
               type="email"
               placeholder="Your email"
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
               className="input-dark rounded-none flex-1"
             />
             <button data-testid="footer-newsletter-btn" className="btn-gold btn-gold-solid ml-2">

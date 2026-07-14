@@ -2,9 +2,13 @@ import os
 import re
 import uuid
 import json
+import logging
+import time
+import asyncio
 import httpx
+from contextlib import asynccontextmanager
 from datetime import datetime, timezone, timedelta
-from typing import Optional, Literal
+from typing import Optional, Literal, List
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -28,6 +32,67 @@ JWT_ALGORITHM = "HS256"
 
 client = AsyncIOMotorClient(MONGO_URL)
 db = client[DB_NAME]
+
+logger = logging.getLogger("aurelia")
+if not logger.handlers:
+    _h = logging.StreamHandler()
+    _h.setFormatter(logging.Formatter("%(asctime)s %(levelname)s %(message)s"))
+    logger.addHandler(_h)
+logger.setLevel(logging.INFO)
+
+
+class _SlidingWindowLimiter:
+    def __init__(self, max_requests: int, window_seconds: int):
+        self.max_requests = max_requests
+        self.window = window_seconds
+        self._hits: dict[str, list[float]] = {}
+
+    def is_allowed(self, key: str) -> bool:
+        now = time.time()
+        window_start = now - self.window
+        hits = [t for t in self._hits.get(key, []) if t > window_start]
+        self._hits[key] = hits
+        if len(hits) >= self.max_requests:
+            return False
+        hits.append(now)
+        return True
+
+
+public_write_limiter = _SlidingWindowLimiter(15, 60)
+auth_write_limiter = _SlidingWindowLimiter(5, 60)
+
+ROLES = ["user", "waiter", "chef", "cashier", "manager", "admin"]
+
+_PERMISSIONS = {
+    "waiter":   ["view_reservations", "update_reservation_status", "view_orders", "view_kds"],
+    "chef":     ["view_kds", "update_order_status"],
+    "cashier":  ["view_orders", "update_payment_status", "process_refund"],
+    "manager":  ["view_reservations", "update_reservation_status", "view_orders",
+                 "update_order_status", "update_payment_status", "view_kds",
+                 "view_inventory", "update_inventory", "view_reports", "manage_staff"],
+    "admin":    ["*"],
+}
+
+
+def has_permission(role: str, action: str) -> bool:
+    allowed = _PERMISSIONS.get(role, [])
+    return "*" in allowed or action in allowed
+
+
+def require_role(*allowed_roles: str):
+    async def _dep(user: dict = Depends(get_current_user)) -> dict:
+        if user.get("role") not in allowed_roles:
+            raise HTTPException(status_code=403, detail=f"Role required: {', '.join(allowed_roles)}")
+        return user
+    return _dep
+
+
+def require_permission(action: str):
+    async def _dep(user: dict = Depends(get_current_user)) -> dict:
+        if not has_permission(user.get("role", "user"), action):
+            raise HTTPException(status_code=403, detail=f"Permission denied: {action}")
+        return user
+    return _dep
 
 
 # --------------------- helpers ---------------------
@@ -190,8 +255,176 @@ class QuoteIn(BaseModel):
     notes: str = ""
 
 
+class OrderItemIn(BaseModel):
+    menu_item_id: str = Field(min_length=1)
+    name: str = Field(min_length=1)
+    price: float = Field(gt=0)
+    quantity: int = Field(default=1, ge=1)
+
+
+class OrderIn(BaseModel):
+    items: list[OrderItemIn] = Field(min_length=1)
+    total: float = Field(gt=0)
+    payment_method: str = "mock"
+    notes: str = ""
+
+
+class StatusUpdateIn(BaseModel):
+    status: Literal["pending", "confirmed", "preparing", "ready", "completed", "cancelled"]
+    payment_status: Optional[Literal["pending", "paid", "failed", "refunded"]] = None
+
+
+class StaffIn(BaseModel):
+    name: str = Field(min_length=1, max_length=80)
+    email: EmailStr
+    password: str = Field(min_length=6)
+    role: Literal["waiter", "chef", "cashier", "manager"] = "waiter"
+
+
+class StaffUpdateIn(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=80)
+    role: Optional[Literal["waiter", "chef", "cashier", "manager"]] = None
+    password: Optional[str] = Field(default=None, min_length=6)
+
+
+class TableIn(BaseModel):
+    number: str = Field(min_length=1, max_length=20)
+    capacity: int = Field(default=2, ge=1)
+    section: str = "main"
+
+
+class InventoryIn(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    category: str = "General"
+    quantity: float = Field(ge=0)
+    unit: str = "pcs"
+    threshold: float = Field(default=10, ge=0)
+    supplier: str = ""
+
+
+class InventoryUpdateIn(BaseModel):
+    name: Optional[str] = Field(default=None, min_length=1, max_length=120)
+    category: Optional[str] = None
+    quantity: Optional[float] = Field(default=None, ge=0)
+    unit: Optional[str] = None
+    threshold: Optional[float] = Field(default=None, ge=0)
+    supplier: Optional[str] = None
+
+
+class KDSUpdateIn(BaseModel):
+    status: Literal["pending", "preparing", "ready", "completed", "cancelled"]
+    station: Optional[str] = None
+
+
+class MetricsFilter(BaseModel):
+    start_date: Optional[str] = None
+    end_date: Optional[str] = None
+    granularity: Literal["hour", "day", "week", "month"] = "day"
+
+
 # --------------------- app & CORS (must be registered before routes) -----------
-app = FastAPI(title="Aurelia API")
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await db.users.create_index("email", unique=True)
+    await db.menu.create_index("name")
+    await db.reservations.create_index("created_at")
+    await db.reservations.create_index("table")
+    await db.waitlist.create_index("created_at")
+    await db.feedback.create_index("created_at")
+    await db.orders.create_index("created_at")
+    await db.orders.create_index("user_id")
+    await db.tables.create_index("number", unique=True)
+    await db.inventory.create_index("name")
+    await db.inventory.create_index("category")
+
+    admin_email = os.environ.get("ADMIN_EMAIL", "admin@aurelia.com")
+    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")
+    existing = await db.users.find_one({"email": admin_email})
+    if not existing:
+        await db.users.insert_one({
+            "id": str(uuid.uuid4()),
+            "email": admin_email,
+            "name": "Aurelia Admin",
+            "password_hash": hash_password(admin_password),
+            "role": "admin",
+            "created_at": datetime.now(timezone.utc).isoformat(),
+        })
+    elif not verify_password(admin_password, existing.get("password_hash", "")):
+        await db.users.update_one(
+            {"email": admin_email},
+            {"$set": {"password_hash": hash_password(admin_password), "role": "admin"}}
+        )
+
+    if await db.menu.count_documents({}) == 0:
+        seed = [
+            {"name": "Greek Salad", "price": 595, "category": "Appetizer",
+             "description": "Tomatoes, green bell pepper, cucumber, olives and feta cheese.",
+             "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80",
+             "badge": "Seasonal"},
+            {"name": "Vegetable Lasagne", "price": 895, "category": "Main",
+             "description": "Layers of pasta, spinach, ricotta, tomato sauce and melted mozzarella.",
+             "image": "https://images.unsplash.com/photo-1574894709920-11b28e7367e3?w=600&q=80",
+             "badge": ""},
+            {"name": "Butternut Pumpkin Soup", "price": 495, "category": "Soup",
+             "description": "Roasted butternut squash with cream and sage.",
+             "image": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",
+             "badge": ""},
+            {"name": "Stuffed Portobello Steak", "price": 1195, "category": "Main",
+             "description": "Grilled portobello, herb stuffing, roasted vegetables, and balsamic glaze.",
+             "image": "https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=80",
+             "badge": "New"},
+            {"name": "Stuffed Bell Peppers", "price": 595, "category": "Appetizer",
+             "description": "Rice, herbs, and cheese stuffed bell peppers with tomato sauce.",
+             "image": "https://images.unsplash.com/photo-1572453800999-e8d2d1589b7c?w=600&q=80",
+             "badge": ""},
+            {"name": "Crispy Stuffed Mushrooms", "price": 795, "category": "Main",
+             "description": "Golden-baked portobello caps stuffed with herbed ricotta, sundried tomatoes, and pine nuts.",
+             "image": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600&q=80",
+             "badge": ""},
+            {"name": "Wild Mushroom Risotto", "price": 995, "category": "Special",
+             "description": "Creamy risotto with wild mushrooms, truffle oil, and parmesan.",
+             "image": "https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=80",
+             "badge": "Chef"},
+        ]
+        for s in seed:
+            s.update({"id": str(uuid.uuid4()), "created_at": datetime.now(timezone.utc).isoformat()})
+        await db.menu.insert_many(seed)
+
+    if await db.tables.count_documents({}) == 0:
+        tables = [
+            {"number": "T1", "capacity": 2, "section": "main", "available": True},
+            {"number": "T2", "capacity": 2, "section": "main", "available": True},
+            {"number": "T3", "capacity": 4, "section": "main", "available": True},
+            {"number": "T4", "capacity": 4, "section": "terrace", "available": True},
+            {"number": "T5", "capacity": 6, "section": "main", "available": True},
+            {"number": "T6", "capacity": 8, "section": "private", "available": True},
+            {"number": "T7", "capacity": 8, "section": "private", "available": True},
+            {"number": "T8", "capacity": 12, "section": "private", "available": True},
+        ]
+        for t in tables:
+            t["id"] = str(uuid.uuid4())
+            t["created_at"] = datetime.now(timezone.utc).isoformat()
+        await db.tables.insert_many(tables)
+
+    if await db.inventory.count_documents({}) == 0:
+        inventory = [
+            {"name": "Tomatoes", "category": "Vegetables", "quantity": 50, "unit": "kg", "threshold": 10, "supplier": "Local Farm"},
+            {"name": "Mozzarella", "category": "Dairy", "quantity": 20, "unit": "kg", "threshold": 5, "supplier": "Dairy Co"},
+            {"name": "Basil", "category": "Herbs", "quantity": 3, "unit": "kg", "threshold": 2, "supplier": "Garden Fresh"},
+            {"name": "Olive Oil", "category": "Oils", "quantity": 15, "unit": "L", "threshold": 5, "supplier": "Imports Ltd"},
+            {"name": "Pasta Sheets", "category": "Dry Goods", "quantity": 8, "unit": "kg", "threshold": 5, "supplier": "Grain Mills"},
+        ]
+        for i in inventory:
+            i["id"] = str(uuid.uuid4())
+            i["created_at"] = datetime.now(timezone.utc).isoformat()
+        await db.inventory.insert_many(inventory)
+
+    yield
+
+    client.close()
+
+
+app = FastAPI(title="Aurelia API", lifespan=lifespan)
 
 frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
 origins = {frontend_url, "http://localhost:3000"}
@@ -208,7 +441,9 @@ api = APIRouter(prefix="/api")
 
 # --------------------- auth routes ---------------------
 @api.post("/auth/register")
-async def register(inp: RegisterIn, response: Response):
+async def register(inp: RegisterIn, request: Request, response: Response):
+    if not auth_write_limiter.is_allowed(f"auth:{request.client.host if request.client else 'unknown'}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     email = inp.email.lower()
     if await db.users.find_one({"email": email}):
         raise HTTPException(status_code=400, detail="Email already registered")
@@ -220,8 +455,9 @@ async def register(inp: RegisterIn, response: Response):
     }
     try:
         await db.users.insert_one(doc.copy())
-    except Exception:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    except Exception as exc:
+        logger.error("Register failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Registration failed. Please try again.")
     access = create_access_token(uid, email, "user")
     refresh = create_refresh_token(uid)
     set_auth_cookies(response, access, refresh)
@@ -229,7 +465,9 @@ async def register(inp: RegisterIn, response: Response):
     return public_user(doc)
 
 @api.post("/auth/login")
-async def login(inp: LoginIn, response: Response):
+async def login(inp: LoginIn, request: Request, response: Response):
+    if not auth_write_limiter.is_allowed(f"auth:{request.client.host if request.client else 'unknown'}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     email = inp.email.lower()
     user = await db.users.find_one({"email": email}, {"_id": 0})
     if not user or not verify_password(inp.password, user.get("password_hash", "")):
@@ -244,6 +482,30 @@ async def logout(response: Response):
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/")
     return {"ok": True}
+
+@api.post("/auth/refresh")
+async def refresh(request: Request, response: Response):
+    token = request.cookies.get("refresh_token")
+    if not token:
+        raise HTTPException(status_code=401, detail="No refresh token")
+    try:
+        payload = pyjwt.decode(token, JWT_SECRET, algorithms=[JWT_ALGORITHM])
+        if payload.get("type") != "refresh":
+            raise HTTPException(status_code=401, detail="Invalid token type")
+    except pyjwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Refresh token expired")
+    except pyjwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid refresh token")
+    uid = payload.get("sub")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Invalid token payload")
+    user = await db.users.find_one({"id": uid}, {"_id": 0})
+    if not user:
+        raise HTTPException(status_code=401, detail="User not found")
+    access = create_access_token(uid, user["email"], user.get("role", "user"))
+    refresh = create_refresh_token(uid)
+    set_auth_cookies(response, access, refresh)
+    return public_user(user)
 
 @api.get("/auth/me")
 async def me(user: dict = Depends(get_current_user)):
@@ -282,6 +544,8 @@ async def delete_menu(item_id: str, _: dict = Depends(require_admin)):
 # --------------------- reservations ---------------------
 @api.post("/reservations")
 async def create_reservation(inp: ReservationIn, request: Request):
+    if not public_write_limiter.is_allowed(f"reservation:{request.client.host if request.client else 'unknown'}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     user_id = None
     token = request.cookies.get("access_token")
     if token:
@@ -291,6 +555,28 @@ async def create_reservation(inp: ReservationIn, request: Request):
                 user_id = p.get("sub")
         except pyjwt.PyJWTError:
             user_id = None
+
+    table_id = inp.table
+    if not table_id:
+        table_doc = await db.tables.find_one({"available": True}, {"_id": 0})
+        if not table_doc:
+            raise HTTPException(status_code=409, detail="No tables available for the selected time")
+        table_id = table_doc["id"]
+    table = await db.tables.find_one({"id": table_id}, {"_id": 0})
+    if not table:
+        raise HTTPException(status_code=404, detail="Table not found")
+    if table.get("capacity", 0) < inp.persons:
+        raise HTTPException(status_code=409, detail=f"Table {table_id} seats only {table.get('capacity', 0)}")
+
+    conflict = await db.reservations.find_one({
+        "table": table_id,
+        "date": inp.date,
+        "time": inp.time,
+        "status": {"$nin": ["cancelled"]},
+    }, {"_id": 0})
+    if conflict:
+        raise HTTPException(status_code=409, detail="This table is already booked for the selected slot")
+
     doc = {"id": str(uuid.uuid4()), **inp.model_dump(),
            "user_id": user_id, "status": "pending",
            "created_at": datetime.now(timezone.utc).isoformat()}
@@ -308,16 +594,234 @@ async def my_reservations(user: dict = Depends(get_current_user)):
     return docs
 
 @api.put("/reservations/{rid}/status")
-async def update_status(rid: str, inp: StatusIn, _: dict = Depends(require_admin)):
+async def update_status(rid: str, inp: StatusIn, user: dict = Depends(require_permission("update_reservation_status"))):
     r = await db.reservations.update_one({"id": rid}, {"$set": {"status": inp.status}})
     if r.matched_count == 0:
         raise HTTPException(status_code=404, detail="Not found")
     return {"ok": True}
 
 
+# --------------------- tables ---------------------
+@api.post("/tables")
+async def create_table(inp: TableIn, _: dict = Depends(require_permission("manage_staff"))):
+    doc = {"id": str(uuid.uuid4()), **inp.model_dump(), "available": True,
+           "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.tables.insert_one(doc.copy())
+    return doc
+
+
+@api.get("/tables")
+async def list_tables(_: dict = Depends(require_permission("manage_staff"))):
+    docs = await db.tables.find({}, {"_id": 0}).sort("number", 1).to_list(500)
+    return docs
+
+
+@api.put("/tables/{tid}")
+async def update_table(tid: str, inp: TableIn, _: dict = Depends(require_permission("manage_staff"))):
+    r = await db.tables.update_one({"id": tid}, {"$set": inp.model_dump()})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    doc = await db.tables.find_one({"id": tid}, {"_id": 0})
+    return doc
+
+
+@api.delete("/tables/{tid}")
+async def delete_table(tid: str, _: dict = Depends(require_permission("manage_staff"))):
+    r = await db.tables.delete_one({"id": tid})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True}
+
+
+# --------------------- staff ---------------------
+@api.post("/staff")
+async def create_staff(inp: StaffIn, _: dict = Depends(require_permission("manage_staff"))):
+    email = inp.email.lower()
+    existing = await db.users.find_one({"email": email})
+    if existing:
+        raise HTTPException(status_code=400, detail="Email already registered")
+    uid = str(uuid.uuid4())
+    doc = {
+        "id": uid, "email": email, "name": inp.name.strip(),
+        "password_hash": hash_password(inp.password),
+        "role": inp.role, "created_at": datetime.now(timezone.utc).isoformat(),
+    }
+    await db.users.insert_one(doc.copy())
+    doc.pop("password_hash", None)
+    return public_user(doc)
+
+
+@api.get("/staff")
+async def list_staff(_: dict = Depends(require_permission("manage_staff"))):
+    docs = await db.users.find({"role": {"$ne": "user"}}, {"_id": 0, "password_hash": 0}).sort("created_at", -1).to_list(500)
+    return docs
+
+
+@api.put("/staff/{sid}")
+async def update_staff(sid: str, inp: StaffUpdateIn, _: dict = Depends(require_permission("manage_staff"))):
+    update_doc = {}
+    if inp.name is not None:
+        update_doc["name"] = inp.name.strip()
+    if inp.role is not None:
+        update_doc["role"] = inp.role
+    if inp.password is not None:
+        update_doc["password_hash"] = hash_password(inp.password)
+    if not update_doc:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    r = await db.users.update_one({"id": sid, "role": {"$ne": "user"}}, {"$set": update_doc})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    doc = await db.users.find_one({"id": sid}, {"_id": 0, "password_hash": 0})
+    return doc
+
+
+@api.delete("/staff/{sid}")
+async def delete_staff(sid: str, _: dict = Depends(require_permission("manage_staff"))):
+    r = await db.users.delete_one({"id": sid, "role": {"$ne": "user"}})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Staff not found")
+    return {"ok": True}
+
+
+# --------------------- inventory ---------------------
+@api.post("/inventory")
+async def create_inventory_item(inp: InventoryIn, _: dict = Depends(require_permission("update_inventory"))):
+    doc = {"id": str(uuid.uuid4()), **inp.model_dump(),
+           "created_at": datetime.now(timezone.utc).isoformat()}
+    await db.inventory.insert_one(doc.copy())
+    return doc
+
+
+@api.get("/inventory")
+async def list_inventory(_: dict = Depends(require_permission("view_inventory"))):
+    docs = await db.inventory.find({}, {"_id": 0}).sort("name", 1).to_list(500)
+    return docs
+
+
+@api.get("/inventory/low-stock")
+async def low_stock_inventory(_: dict = Depends(require_permission("view_inventory"))):
+    docs = await db.inventory.find({"$expr": {"$lte": ["$quantity", "$threshold"]}}, {"_id": 0}).sort("name", 1).to_list(500)
+    return docs
+
+
+@api.put("/inventory/{iid}")
+async def update_inventory_item(iid: str, inp: InventoryUpdateIn, _: dict = Depends(require_permission("update_inventory"))):
+    update_doc = {}
+    for field, value in inp.model_dump().items():
+        if value is not None:
+            update_doc[field] = value
+    if not update_doc:
+        raise HTTPException(status_code=400, detail="No fields to update")
+    r = await db.inventory.update_one({"id": iid}, {"$set": update_doc})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    doc = await db.inventory.find_one({"id": iid}, {"_id": 0})
+    return doc
+
+
+@api.delete("/inventory/{iid}")
+async def delete_inventory_item(iid: str, _: dict = Depends(require_permission("update_inventory"))):
+    r = await db.inventory.delete_one({"id": iid})
+    if r.deleted_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    return {"ok": True}
+
+
+# --------------------- kitchen display system ---------------------
+@api.get("/kds")
+async def kds_orders(user: dict = Depends(require_permission("view_kds"))):
+    docs = await db.orders.find(
+        {"status": {"$nin": ["completed", "cancelled"]}},
+        {"_id": 0}
+    ).sort("created_at", 1).to_list(200)
+    return docs
+
+
+@api.put("/kds/{order_id}")
+async def kds_update(order_id: str, inp: KDSUpdateIn, user: dict = Depends(require_permission("update_order_status"))):
+    update_doc = {"status": inp.status, "kds_updated_at": datetime.now(timezone.utc).isoformat()}
+    if inp.station:
+        update_doc["station"] = inp.station
+    if inp.status == "preparing":
+        update_doc["prep_started_at"] = datetime.now(timezone.utc).isoformat()
+    if inp.status == "ready":
+        update_doc["ready_at"] = datetime.now(timezone.utc).isoformat()
+    r = await db.orders.update_one({"id": order_id}, {"$set": update_doc})
+    if r.matched_count == 0:
+        raise HTTPException(status_code=404, detail="Not found")
+    doc = await db.orders.find_one({"id": order_id}, {"_id": 0})
+    return doc
+
+
+# --------------------- service-level metrics ---------------------
+@api.get("/metrics")
+async def service_metrics(filters: MetricsFilter = Depends(), _: dict = Depends(require_permission("view_reports"))):
+    match = {}
+    if filters.start_date:
+        match["created_at"] = {"$gte": filters.start_date}
+    if filters.end_date:
+        match.setdefault("created_at", {})["$lte"] = filters.end_date
+
+    total_orders = await db.orders.count_documents(match)
+    completed = await db.orders.count_documents({**match, "status": "completed"})
+    cancelled = await db.orders.count_documents({**match, "status": "cancelled"})
+
+    pipeline = [
+        {"$match": {**match, "status": "completed", "prep_started_at": {"$exists": True}, "ready_at": {"$exists": True}}},
+        {"$project": {
+            "prep_time": {
+                "$cond": [
+                    {"$and": ["$prep_started_at", "$ready_at"]},
+                    {"$dateDiff": {
+                        "startDate": {"$dateFromString": {"dateString": "$prep_started_at"}},
+                        "endDate": {"$dateFromString": {"dateString": "$ready_at"}},
+                        "unit": "minute"
+                    }},
+                    None,
+                ]
+            }
+        }},
+        {"$group": {
+            "_id": None,
+            "avg_prep_time": {"$avg": "$prep_time"},
+            "max_prep_time": {"$max": "$prep_time"},
+            "min_prep_time": {"$min": "$prep_time"},
+            "count": {"$sum": 1},
+        }},
+    ]
+    agg = await db.orders.aggregate(pipeline).to_list(1)
+    prep_stats = agg[0] if agg else {"avg_prep_time": 0, "max_prep_time": 0, "min_prep_time": 0, "count": 0}
+
+    hourly = await db.orders.aggregate([
+        {"$match": match},
+        {"$group": {
+            "_id": {"$hour": {"$dateFromString": {"dateString": "$created_at"}}},
+            "count": {"$sum": 1},
+            "revenue": {"$sum": {"$cond": [{"$eq": ["$payment_status", "paid"]}, "$total", 0]}},
+        }},
+        {"$sort": {"_id": 1}},
+    ]).to_list(24)
+
+    return {
+        "total_orders": total_orders,
+        "completed": completed,
+        "cancelled": cancelled,
+        "completion_rate": completed / total_orders if total_orders else 0,
+        "prep_stats": {
+            "avg_minutes": round(prep_stats.get("avg_prep_time", 0), 1),
+            "max_minutes": round(prep_stats.get("max_prep_time", 0), 1),
+            "min_minutes": round(prep_stats.get("min_prep_time", 0), 1),
+            "sample_size": prep_stats.get("count", 0),
+        },
+        "hourly_volume": hourly,
+    }
+
+
 # --------------------- contact ---------------------
 @api.post("/contact")
-async def submit_contact(inp: ContactIn):
+async def submit_contact(inp: ContactIn, request: Request):
+    if not public_write_limiter.is_allowed(f"contact:{request.client.host if request.client else 'unknown'}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     doc = {"id": str(uuid.uuid4()), **inp.model_dump(),
            "created_at": datetime.now(timezone.utc).isoformat(), "read": False}
     await db.contact.insert_one(doc.copy())
@@ -330,15 +834,10 @@ async def list_contact(_: dict = Depends(require_admin)):
 
 
 # --------------------- waitlist ---------------------
-class WaitlistIn(BaseModel):
-    name: str
-    phone: str
-    email: Optional[EmailStr] = None
-    persons: int = 2
-    message: str = ""
-
 @api.post("/waitlist")
-async def join_waitlist(inp: WaitlistIn):
+async def join_waitlist(inp: WaitlistIn, request: Request):
+    if not public_write_limiter.is_allowed(f"waitlist:{request.client.host if request.client else 'unknown'}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     waiting = await db.waitlist.count_documents({"status": "waiting"})
     doc = {"id": str(uuid.uuid4()), **inp.model_dump(),
            "status": "waiting", "position": waiting + 1,
@@ -362,7 +861,9 @@ async def update_waitlist_status(wid: str, inp: StatusIn, _: dict = Depends(requ
 _MOOD_RATING = {"exceptional": 5, "good": 4, "neutral": 3, "disappointed": 2, "unsatisfied": 1}
 
 @api.post("/feedback")
-async def submit_feedback(inp: FeedbackIn):
+async def submit_feedback(inp: FeedbackIn, request: Request):
+    if not public_write_limiter.is_allowed(f"feedback:{request.client.host if request.client else 'unknown'}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     # Derive a single numeric rating from whichever fields the client sent.
     numeric = inp.rating
     if numeric is None and inp.overall:
@@ -399,7 +900,9 @@ async def list_feedback(_: dict = Depends(require_admin)):
 
 # --------------------- private dining / quote requests ---------------------
 @api.post("/quote")
-async def submit_quote(inp: QuoteIn):
+async def submit_quote(inp: QuoteIn, request: Request):
+    if not public_write_limiter.is_allowed(f"quote:{request.client.host if request.client else 'unknown'}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     doc = {"id": str(uuid.uuid4()), **inp.model_dump(),
            "status": "pending",
            "created_at": datetime.now(timezone.utc).isoformat()}
@@ -410,6 +913,124 @@ async def submit_quote(inp: QuoteIn):
 async def list_quotes(_: dict = Depends(require_admin)):
     docs = await db.quotes.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
     return docs
+
+
+# --------------------- orders ---------------------
+@api.post("/orders")
+async def create_order(inp: OrderIn, request: Request, user: dict = Depends(get_current_user)):
+    if not public_write_limiter.is_allowed(f"order:{request.client.host if request.client else 'unknown'}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
+    try:
+        computed_total = sum(i.price * i.quantity for i in inp.items)
+        if abs(computed_total - inp.total) > 0.01:
+            raise HTTPException(status_code=400, detail="Invalid order total")
+        doc = {
+            "id": str(uuid.uuid4()),
+            "user_id": user["id"],
+            "user_name": user.get("name", ""),
+            "user_email": user.get("email", ""),
+            "items": [i.model_dump() for i in inp.items],
+            "total": computed_total,
+            "payment_method": inp.payment_method,
+            "payment_status": "paid" if inp.payment_method == "mock" else "pending",
+            "status": "confirmed" if inp.payment_method == "mock" else "pending",
+            "notes": inp.notes,
+            "created_at": datetime.now(timezone.utc).isoformat(),
+            "kds_updated_at": None,
+            "prep_started_at": None,
+            "ready_at": None,
+            "station": None,
+        }
+        await db.orders.insert_one(doc.copy())
+        return doc
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Create order failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to place order")
+
+
+@api.get("/orders/mine")
+async def my_orders(user: dict = Depends(get_current_user)):
+    try:
+        docs = await db.orders.find({"user_id": user["id"]}, {"_id": 0}).sort("created_at", -1).to_list(200)
+        return docs
+    except Exception as exc:
+        logger.error("My orders failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to load orders")
+
+
+@api.get("/orders")
+async def list_orders(_: dict = Depends(require_admin)):
+    try:
+        docs = await db.orders.find({}, {"_id": 0}).sort("created_at", -1).to_list(500)
+        return docs
+    except Exception as exc:
+        logger.error("List orders failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to load orders")
+
+
+@api.put("/orders/{order_id}/status")
+async def update_order_status(order_id: str, inp: StatusUpdateIn, _: dict = Depends(require_admin)):
+    try:
+        update = {"status": inp.status}
+        if inp.payment_status is not None:
+            update["payment_status"] = inp.payment_status
+        r = await db.orders.update_one({"id": order_id}, {"$set": update})
+        if r.matched_count == 0:
+            raise HTTPException(status_code=404, detail="Not found")
+        return {"ok": True}
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("Update order status failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to update order")
+
+
+@api.get("/reports/stats")
+async def reports_stats(_: dict = Depends(require_admin)):
+    try:
+        total_orders = await db.orders.count_documents({})
+        total_revenue_doc = await db.orders.aggregate([
+            {"$match": {"payment_status": "paid"}},
+            {"$group": {"_id": None, "total": {"$sum": "$total"}}},
+        ]).to_list(1)
+        total_revenue = total_revenue_doc[0]["total"] if total_revenue_doc else 0
+        avg_order_doc = await db.orders.aggregate([
+            {"$match": {"payment_status": "paid"}},
+            {"$group": {"_id": None, "avg": {"$avg": "$total"}}},
+        ]).to_list(1)
+        avg_order = avg_order_doc[0]["avg"] if avg_order_doc else 0
+        pending = await db.orders.count_documents({"status": "pending"})
+        confirmed = await db.orders.count_documents({"status": "confirmed"})
+        preparing = await db.orders.count_documents({"status": "preparing"})
+        ready = await db.orders.count_documents({"status": "ready"})
+        completed = await db.orders.count_documents({"status": "completed"})
+        cancelled = await db.orders.count_documents({"status": "cancelled"})
+        top_items = await db.orders.aggregate([
+            {"$unwind": "$items"},
+            {"$group": {"_id": "$items.name", "qty": {"$sum": "$items.quantity"}, "revenue": {"$sum": {"$multiply": ["$items.price", "$items.quantity"]}}}},
+            {"$sort": {"qty": -1}},
+            {"$limit": 5},
+        ]).to_list(5)
+        return {
+            "total_orders": total_orders,
+            "total_revenue": round(total_revenue, 2),
+            "avg_order": round(avg_order, 2),
+            "status_counts": {
+                "pending": pending,
+                "confirmed": confirmed,
+                "preparing": preparing,
+                "ready": ready,
+                "completed": completed,
+                "cancelled": cancelled,
+            },
+            "top_items": top_items,
+        }
+    except Exception as exc:
+        logger.error("Reports stats failed: %s", exc)
+        raise HTTPException(status_code=500, detail="Failed to load reports")
+
 
 # --------------------- smart menu (time-based) ---------------------
 @api.get("/menu/smart")
@@ -1005,7 +1626,9 @@ async def _gemini_reply(message: str, menu_items: list, history: list, api_key: 
 
 
 @api.post("/chatbot")
-async def chatbot(inp: ChatIn):
+async def chatbot(inp: ChatIn, request: Request):
+    if not public_write_limiter.is_allowed(f"chatbot:{request.client.host if request.client else 'unknown'}"):
+        raise HTTPException(status_code=429, detail="Too many requests. Please try again later.")
     import asyncio
     items = await db.menu.find(
         {}, {"_id": 0, "name": 1, "price": 1, "category": 1, "description": 1, "badge": 1}
@@ -1045,76 +1668,6 @@ async def root():
 
 # --------------------- include router ---------------------
 app.include_router(api)
-
-
-# --------------------- startup / shutdown ---------------------
-@app.on_event("startup")
-async def startup():
-    await db.users.create_index("email", unique=True)
-    await db.menu.create_index("name")
-    await db.reservations.create_index("created_at")
-    await db.waitlist.create_index("created_at")
-    await db.feedback.create_index("created_at")
-
-    # seed admin
-    admin_email = os.environ.get("ADMIN_EMAIL", "admin@aurelia.com")
-    admin_password = os.environ.get("ADMIN_PASSWORD", "Admin@123")
-    existing = await db.users.find_one({"email": admin_email})
-    if not existing:
-        await db.users.insert_one({
-            "id": str(uuid.uuid4()),
-            "email": admin_email,
-            "name": "Aurelia Admin",
-            "password_hash": hash_password(admin_password),
-            "role": "admin",
-            "created_at": datetime.now(timezone.utc).isoformat(),
-        })
-    elif not verify_password(admin_password, existing.get("password_hash", "")):
-        await db.users.update_one(
-            {"email": admin_email},
-            {"$set": {"password_hash": hash_password(admin_password), "role": "admin"}}
-        )
-
-    # seed initial menu items if empty
-    if await db.menu.count_documents({}) == 0:
-        seed = [
-            {"name": "Greek Salad", "price": 595, "category": "Appetizer",
-             "description": "Tomatoes, green bell pepper, cucumber, olives and feta cheese.",
-             "image": "https://images.unsplash.com/photo-1512621776951-a57141f2eefd?w=600&q=80",
-             "badge": "Seasonal"},
-            {"name": "Vegetable Lasagne", "price": 895, "category": "Main",
-             "description": "Layers of pasta, spinach, ricotta, tomato sauce and melted mozzarella.",
-             "image": "https://images.unsplash.com/photo-1574894709920-11b28e7367e3?w=600&q=80",
-             "badge": ""},
-            {"name": "Butternut Pumpkin Soup", "price": 495, "category": "Soup",
-             "description": "Roasted butternut squash with cream and sage.",
-             "image": "https://images.unsplash.com/photo-1547592180-85f173990554?w=600&q=80",
-             "badge": ""},
-            {"name": "Stuffed Portobello Steak", "price": 1195, "category": "Main",
-             "description": "Grilled portobello, herb stuffing, roasted vegetables, and balsamic glaze.",
-             "image": "https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=80",
-             "badge": "New"},
-            {"name": "Stuffed Bell Peppers", "price": 595, "category": "Appetizer",
-             "description": "Rice, herbs, and cheese stuffed bell peppers with tomato sauce.",
-             "image": "https://images.unsplash.com/photo-1572453800999-e8d2d1589b7c?w=600&q=80",
-             "badge": ""},
-            {"name": "Crispy Stuffed Mushrooms", "price": 795, "category": "Main",
-             "description": "Golden-baked portobello caps stuffed with herbed ricotta, sundried tomatoes, and pine nuts.",
-             "image": "https://images.unsplash.com/photo-1574071318508-1cdbab80d002?w=600&q=80",
-             "badge": ""},
-            {"name": "Wild Mushroom Risotto", "price": 995, "category": "Special",
-             "description": "Creamy risotto with wild mushrooms, truffle oil, and parmesan.",
-             "image": "https://images.unsplash.com/photo-1476124369491-e7addf5db371?w=600&q=80",
-             "badge": "Chef"},
-        ]
-        for s in seed:
-            s.update({"id": str(uuid.uuid4()), "created_at": datetime.now(timezone.utc).isoformat()})
-        await db.menu.insert_many(seed)
-
-
-@app.on_event("shutdown")
-async def shutdown():
-    client.close()
 
 
 

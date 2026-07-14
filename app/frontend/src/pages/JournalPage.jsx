@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { Link } from "react-router-dom";
+import { toast } from "sonner";
 
 const categories = ["All", "Seasonal", "Recipes", "Producer Stories", "Beverages", "Behind the Scenes"];
 
@@ -164,6 +165,19 @@ function ArticleCard({ article, large = false, onOpen }) {
 export default function JournalPage() {
   const [active, setActive] = useState("All");
   const [openArticle, setOpenArticle] = useState(null);
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterSent, setNewsletterSent] = useState(false);
+
+  const subscribeNewsletter = (e) => {
+    e.preventDefault();
+    if (!newsletterEmail || !newsletterEmail.includes("@")) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+    toast.success("You're subscribed to The Journal.");
+    setNewsletterEmail("");
+    setNewsletterSent(true);
+  };
 
   const filtered = active === "All" ? articles : articles.filter((a) => a.cat === active);
   const featured = filtered.find((a) => a.featured) || filtered[0];
@@ -247,17 +261,20 @@ export default function JournalPage() {
               <p className="text-white/50 mb-8 max-w-md mx-auto">
                 A monthly letter from the kitchen — seasonal notes, new dishes, and the stories behind them.
               </p>
-              <form
-                onSubmit={(e) => e.preventDefault()}
-                className="flex flex-col sm:flex-row items-center gap-3 max-w-md mx-auto"
-              >
-                <input
-                  type="email"
-                  placeholder="your@email.com"
-                  className="bg-[#0E0D0C] border border-[#2A2723] px-5 py-3.5 text-white placeholder-white/30 focus:border-gold focus:outline-none transition-colors flex-1 w-full"
-                />
-                <button className="btn-gold btn-gold-solid whitespace-nowrap"><span>Subscribe</span></button>
-              </form>
+              {newsletterSent ? (
+                <p className="text-gold text-sm">You're subscribed. Check your inbox.</p>
+              ) : (
+                <form onSubmit={subscribeNewsletter} className="flex flex-col sm:flex-row items-center gap-3 max-w-md mx-auto">
+                  <input
+                    type="email"
+                    placeholder="your@email.com"
+                    value={newsletterEmail}
+                    onChange={(e) => setNewsletterEmail(e.target.value)}
+                    className="bg-[#0E0D0C] border border-[#2A2723] px-5 py-3.5 text-white placeholder-white/30 focus:border-gold focus:outline-none transition-colors flex-1 w-full"
+                  />
+                  <button type="submit" className="btn-gold btn-gold-solid whitespace-nowrap"><span>Subscribe</span></button>
+                </form>
+              )}
             </div>
           </div>
         </FadeUp>
@@ -272,18 +289,33 @@ export default function JournalPage() {
 }
 
 function ArticleDetail({ article, onClose }) {
+  const bodyParagraphs = article.excerpt
+    ? article.excerpt.split(/(?<=[.!?])\s+/).reduce((acc, sentence, i) => {
+        if (i % 3 === 0) acc.push(sentence);
+        else acc[acc.length - 1] += " " + sentence;
+        return acc;
+      }, [])
+    : [];
+
   useEffect(() => {
     const prev = document.body.style.overflow;
     document.body.style.overflow = "hidden";
     return () => { document.body.style.overflow = prev; };
   }, []);
 
-  const bodyParagraphs = [
-    `Every season reshapes the kitchen. When ingredients arrive at their peak, our job shifts from manipulation to restraint — knowing when to step back and let the produce speak.`,
-    `This is the tension that defines Aurelia's cooking: the desire to create something new against the discipline to preserve what's already perfect. Our team navigates this balance daily, across every station, every plate.`,
-    `The story behind this piece connects to our broader philosophy. We believe that dining is narrative — each course a chapter, each ingredient a character. When guests leave our table, we want them to carry a story, not just a memory of taste.`,
-    `In the coming months, we'll continue exploring these themes. Expect deeper dives into technique, more producer profiles, and candid reflections from the brigade. The kitchen is always talking — we're just translating.`,
-  ];
+  const [newsletterEmail, setNewsletterEmail] = useState("");
+  const [newsletterSent, setNewsletterSent] = useState(false);
+
+  const subscribeNewsletter = (e) => {
+    e.preventDefault();
+    if (!newsletterEmail || !newsletterEmail.includes("@")) {
+      toast.error("Please enter a valid email address.");
+      return;
+    }
+    toast.success("You're subscribed to The Journal.");
+    setNewsletterEmail("");
+    setNewsletterSent(true);
+  };
 
   return (
     <div className="fixed inset-0 z-[200] flex items-start justify-center overflow-y-auto bg-[#0E0D0C]/95 backdrop-blur-sm" onClick={onClose}>
@@ -315,9 +347,34 @@ function ArticleDetail({ article, onClose }) {
             <p key={i}>{p}</p>
           ))}
         </div>
-        <div className="mt-16 border-t border-[#2A2723] pt-10 text-center">
-          <p className="text-gold text-xs font-bold tracking-[0.35em] uppercase mb-4">Continue Reading</p>
-          <button onClick={onClose} className="btn-gold btn-gold-solid"><span>Back to Journal</span></button>
+
+        <div className="mt-16 border-t border-[#2A2723] pt-10">
+          <p className="text-gold text-xs font-bold tracking-[0.35em] uppercase mb-4 text-center">Continue Reading</p>
+          <div className="text-center mb-8">
+            <button onClick={onClose} className="btn-gold btn-gold-solid"><span>Back to Journal</span></button>
+          </div>
+
+          <div className="bg-[#161412] border border-[#2A2723] p-8 lg:p-12 text-center">
+            <p className="text-gold text-xs font-bold tracking-[0.35em] uppercase mb-3">Get The Journal</p>
+            <h3 className="font-forum text-2xl text-white mb-2">Monthly stories from the kitchen</h3>
+            <p className="text-white/50 text-sm mb-6 max-w-md mx-auto">
+              Seasonal notes, new dishes, and the stories behind them. Delivered monthly.
+            </p>
+            {newsletterSent ? (
+              <p className="text-gold text-sm">You're subscribed. Check your inbox.</p>
+            ) : (
+              <form onSubmit={subscribeNewsletter} className="flex flex-col sm:flex-row items-center gap-3 max-w-md mx-auto">
+                <input
+                  type="email"
+                  placeholder="your@email.com"
+                  value={newsletterEmail}
+                  onChange={(e) => setNewsletterEmail(e.target.value)}
+                  className="bg-[#0E0D0C] border border-[#2A2723] px-5 py-3.5 text-white placeholder-white/30 focus:border-gold focus:outline-none transition-colors flex-1 w-full"
+                />
+                <button type="submit" className="btn-gold btn-gold-solid whitespace-nowrap"><span>Subscribe</span></button>
+              </form>
+            )}
+          </div>
         </div>
       </div>
     </div>

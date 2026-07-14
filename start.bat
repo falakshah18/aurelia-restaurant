@@ -14,7 +14,7 @@ for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr ":3000 "') do taskkill
 timeout /t 1 /nobreak >nul
 
 echo [1/2] Backend  ^> http://localhost:8000
-start "Aurelia Backend" cmd /k "cd /d "%~dp0app\backend" && python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000"
+start "Aurelia Backend" cmd /k "cd /d "%~dp0app\backend" && call venv\Scripts\activate.bat && python -m uvicorn server:app --reload --host 0.0.0.0 --port 8000"
 
 timeout /t 4 /nobreak >nul
 

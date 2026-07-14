@@ -1,8 +1,8 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { Link } from "react-router-dom";
 import HeroSlider from "@/components/HeroSlider";
-import useFadeInOnScroll from "@/lib/useFadeIn";
 import { api } from "@/lib/api";
+import { toast } from "sonner";
 import { GlassWater, Utensils, Music, Monitor, Clock, Users, Star, MapPin } from "lucide-react";
 
 const services = [
@@ -152,7 +152,12 @@ function Counter({ value, suffix, delay }) {
 }
 
 export default function Home() {
-  const ref = useFadeInOnScroll();
+  const [giftSent, setGiftSent] = useState(false);
+
+  const purchaseGift = () => {
+    toast.success("Gift card request received. Our team will contact you within 24 hours.");
+    setGiftSent(true);
+  };
   const [menu, setMenu] = useState(fallbackMenu);
   const [activeExperience, setActiveExperience] = useState(experiences[0]);
   const [ambience, setAmbience] = useState(0);
@@ -169,7 +174,7 @@ export default function Home() {
       await api.post("/quote", quote);
       setQuoteDone(true);
     } catch {
-      alert("Something went wrong sending your request. Please call us at +88-123-123456.");
+      toast.error("Something went wrong sending your request. Please call us at +88-123-123456.");
     } finally {
       setQuoteBusy(false);
     }
@@ -185,7 +190,7 @@ export default function Home() {
   const presetAmounts = [500, 1000, 2000, 3000, 5000, 7500, 10000, 15000];
 
   return (
-    <div ref={ref}>
+    <>
       {/* 1. HERO */}
       <HeroSlider />
 
@@ -613,7 +618,7 @@ export default function Home() {
                 </div>
               </div>
 
-              <button type="button" onClick={(e) => e.preventDefault()} className="btn-gold w-full breathe text-center"><span>Purchase Gift Card — ₹{gift.amount.toLocaleString("en-IN")}</span></button>
+              <button type="button" onClick={purchaseGift} disabled={giftSent} className="btn-gold w-full breathe text-center"><span>{giftSent ? "Request Sent" : `Purchase Gift Card — ₹${gift.amount.toLocaleString("en-IN")}`}</span></button>
               <p className="text-white/40 text-xs leading-relaxed text-center">
                 Gift cards are valid for 12 months from purchase and may be used for dining, events, or tasting sessions. Non-refundable.
               </p>
@@ -621,6 +626,6 @@ export default function Home() {
           </div>
         </div>
       </section>
-    </div>
+    </>
   );
 }

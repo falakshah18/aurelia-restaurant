@@ -57,7 +57,11 @@ export default function Chatbot() {
         body: JSON.stringify({ session_id: sid(), message: t, history }),
         signal: controller.signal,
       });
-      if (!res.ok) throw new Error(`${res.status}`);
+      if (!res.ok) {
+        let detail = `${res.status}`;
+        try { const j = await res.json(); detail = j.detail || j.message || detail; } catch {}
+        throw new Error(detail);
+      }
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let acc = "";

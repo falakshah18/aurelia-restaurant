@@ -1,5 +1,5 @@
 import { createContext, useContext, useEffect, useState, useCallback } from "react";
-import { api, formatApiError } from "@/lib/api";
+import { api, formatApiError, setRefreshFn } from "@/lib/api";
 
 const AuthContext = createContext(null);
 
@@ -17,6 +17,7 @@ export function AuthProvider({ children }) {
   }, []);
 
   useEffect(() => { check(); }, [check]);
+  useEffect(() => { setRefreshFn(refresh); }, [refresh]);
 
   const login = async (email, password) => {
     setError("");
@@ -44,13 +45,27 @@ export function AuthProvider({ children }) {
     }
   };
 
+  const refresh = async () => {
+    setError("");
+    try {
+      const { data } = await api.post("/auth/refresh");
+      setUser(data);
+      return { ok: true, user: data };
+    } catch (e) {
+      const msg = formatApiError(e.response?.data?.detail) || e.message;
+      setError(msg);
+      setUser(false);
+      return { ok: false, error: msg };
+    }
+  };
+
   const logout = async () => {
     try { await api.post("/auth/logout"); } catch {}
     setUser(false);
   };
 
   return (
-    <AuthContext.Provider value={{ user, login, register, logout, error, setError }}>
+    <AuthContext.Provider value={{ user, login, register, refresh, logout, error, setError }}>
       {children}
     </AuthContext.Provider>
   );

@@ -101,7 +101,9 @@ export default function FeedbackPage() {
     e.preventDefault();
     setSubmitting(true);
     try {
-      await api.post("/feedback", { overall, ratings, name, email, date, comments, recommend, source: "web" });
+      const payload = { overall, ratings, name, email, date, comments, recommend, source: "web" };
+      if (!payload.email) delete payload.email;
+      await api.post("/feedback", payload);
       toast.success("Thank you for your feedback — it means the world to us.");
       setDone(true);
     } catch {

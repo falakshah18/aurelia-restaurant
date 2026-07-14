@@ -1,0 +1,51 @@
+# render.yaml — Render Blueprint for the Aurelia Restaurant app.
+# Deploy via: Dashboard -> New -> Blueprint -> connect this repo.
+# Services deploy in this order: backend first (web), then frontend (static).
+
+services:
+  # ---------------------- Backend (FastAPI) ----------------------
+  - type: web
+    name: aurelia-backend
+    runtime: python
+    rootDir: app/backend
+    plan: free
+    region: oregon
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn server:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /docs
+    envVars:
+      - key: PYTHON_VERSION
+        value: "3.11"
+      - key: PORT
+        sync: false
+      - key: MONGO_URL
+        sync: false # paste your MongoDB connection string (Atlas recommended)
+      - key: DB_NAME
+        value: aurelia_db
+      - key: JWT_SECRET
+        generateValue: true
+      - key: ADMIN_EMAIL
+        value: admin@aurelia.com
+      - key: ADMIN_PASSWORD
+        value: Admin@123
+      - key: ENVIRONMENT
+        value: production
+      - key: FRONTEND_URL
+        sync: false # set to the frontend URL after it deploys (e.g. https://aurelia-frontend.onrender.com)
+
+  # ---------------------- Frontend (React SPA) ----------------------
+  - type: web
+    name: aurelia-frontend
+    runtime: static
+    rootDir: app/frontend
+    plan: free
+    region: oregon
+    buildCommand: npm install && npm run build
+    staticPublishPath: ./build
+    envVars:
+      - key: NODE_VERSION
+        value: "18"
+      - key: NODE_OPTIONS
+        value: --openssl-legacy-provider
+      - key: REACT_APP_BACKEND_URL
+        sync: false # set to the backend URL (e.g. https://aurelia-backend.onrender.com)

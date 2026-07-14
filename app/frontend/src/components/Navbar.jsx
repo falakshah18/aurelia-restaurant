@@ -1,10 +1,12 @@
 import { useEffect, useState } from "react";
 import { Link, NavLink, useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
-import { Menu, X, LogOut, User as UserIcon, ShieldCheck, PanelTopOpen, ChevronDown } from "lucide-react";
+import { useCart } from "@/context/CartContext";
+import { Menu, X, LogOut, User as UserIcon, ShieldCheck, PanelTopOpen, ChevronDown, ShoppingCart } from "lucide-react";
 
 export default function Navbar() {
   const { user, logout } = useAuth();
+  const { count } = useCart();
   const [scrolled, setScrolled] = useState(false);
   const [open, setOpen] = useState(false);
   const [hidden, setHidden] = useState(false);
@@ -102,6 +104,18 @@ export default function Navbar() {
           </nav>
 
           <div className="hidden lg:flex items-center gap-3 shrink-0">
+            <Link
+              data-testid="nav-cart"
+              to="/cart"
+              className="relative text-base uppercase tracking-[0.15em] text-white hover:text-gold flex items-center gap-2 whitespace-nowrap"
+            >
+              <ShoppingCart size={18} />
+              {count > 0 && (
+                <span className="absolute -top-1.5 -right-3 bg-gold text-black text-[10px] font-bold rounded-full w-4 h-4 grid place-items-center">
+                  {count}
+                </span>
+              )}
+            </Link>
             {user && user.role === "admin" && (
               <Link
                 data-testid="nav-admin"
@@ -195,6 +209,9 @@ export default function Navbar() {
             ))}
           </ul>
           <div className="border-t border-[#2A2723] pt-6 space-y-3 text-sm">
+            <Link onClick={() => setOpen(false)} to="/cart" className="block uppercase tracking-widest flex items-center gap-2">
+              <ShoppingCart size={16} /> Cart {count > 0 ? `(${count})` : ""}
+            </Link>
             {user ? (
               <>
                 {user.role === "admin" && (

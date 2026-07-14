@@ -1,8 +1,9 @@
-import { BrowserRouter, Routes, Route, useLocation } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, Navigate } from "react-router-dom";
 import { useEffect, useMemo } from "react";
 import { Toaster } from "sonner";
 import { AuthProvider } from "@/context/AuthContext";
 import { ThemeProvider } from "@/context/ThemeContext";
+import { CartProvider } from "@/context/CartContext";
 import Navbar from "@/components/Navbar";
 import Footer from "@/components/Footer";
 import Preloader from "@/components/Preloader";
@@ -11,7 +12,6 @@ import LiquidGlass from "@/components/LiquidGlass";
 import CursorTrail from "@/components/CursorTrail";
 import ScrollRing from "@/components/ScrollRing";
 import Dish3DViewer from "@/components/Dish3DViewer";
-import MoodDetector from "@/components/MoodDetector";
 import AudioMuteBtn from "@/components/AudioMuteBtn";
 import ProtectedRoute from "@/components/ProtectedRoute";
 import useAmbientAudio from "@/hooks/useAmbientAudio";
@@ -30,6 +30,9 @@ import JournalPage from "@/pages/JournalPage";
 import SustainabilityPage from "@/pages/SustainabilityPage";
 import WaitlistPage from "@/pages/WaitlistPage";
 import FeedbackPage from "@/pages/FeedbackPage";
+import CartPage from "@/pages/CartPage";
+import CheckoutPage from "@/pages/CheckoutPage";
+import OrdersPage from "@/pages/OrdersPage";
 
 function ScrollToTop() {
   const { pathname } = useLocation();
@@ -94,7 +97,6 @@ function GlobalFeatures() {
       <CursorTrail />
       <ScrollRing />
       <Dish3DViewer />
-      <MoodDetector />
       <AudioMuteBtn muted={muted} onToggle={toggleMute} volume={volume} onChangeVolume={changeVolume} playNoise={playNoise} />
     </>
   );
@@ -105,49 +107,54 @@ function App() {
     <AuthProvider>
       <BrowserRouter>
         <ThemeProvider>
-          <div className="min-h-screen text-white" style={{ backgroundColor: "var(--bg)", color: "var(--text)" }}>
-            <LiquidGlass />
-            <GlobalRippleHandler />
-            <Preloader />
-            <Navbar />
-            <ScrollToTop />
-            <main>
-              <Routes>
-                <Route path="/" element={<Home />} />
-                <Route path="/menu" element={<MenuPage />} />
-                <Route path="/about" element={<About />} />
-                <Route path="/reserve" element={<Reserve />} />
-                <Route path="/contact" element={<Contact />} />
-                <Route path="/login" element={<Login />} />
-                <Route path="/register" element={<Register />} />
-                <Route path="/team" element={<TeamPage />} />
-                <Route path="/waitlist" element={<WaitlistPage />} />
-                <Route path="/feedback" element={<FeedbackPage />} />
-                <Route path="/journal" element={<JournalPage />} />
-                <Route path="/journal/:id" element={<JournalPage />} />
-                <Route path="/sustainability" element={<SustainabilityPage />} />
-                {restaurantPages.filter((p) => p.to !== "/team" && p.to !== "/journal" && p.to !== "/sustainability").map((page) => (
+          <CartProvider>
+            <div className="min-h-screen text-white" style={{ backgroundColor: "var(--bg)", color: "var(--text)" }}>
+              <LiquidGlass />
+              <GlobalRippleHandler />
+              <Preloader />
+              <Navbar />
+              <ScrollToTop />
+              <main>
+                <Routes>
+                  <Route path="/" element={<Home />} />
+                  <Route path="/menu" element={<MenuPage />} />
+                  <Route path="/about" element={<About />} />
+                  <Route path="/reserve" element={<Reserve />} />
+                  <Route path="/contact" element={<Contact />} />
+                  <Route path="/login" element={<Login />} />
+                  <Route path="/register" element={<Register />} />
+                  <Route path="/team" element={<TeamPage />} />
+                  <Route path="/waitlist" element={<WaitlistPage />} />
+                  <Route path="/feedback" element={<FeedbackPage />} />
+                  <Route path="/cart" element={<CartPage />} />
+                  <Route path="/checkout" element={<CheckoutPage />} />
+                  <Route path="/orders" element={<OrdersPage />} />
+                  <Route path="/journal" element={<JournalPage />} />
+                  <Route path="/sustainability" element={<SustainabilityPage />} />
+                  {restaurantPages.filter((p) => p.to !== "/team" && p.to !== "/journal" && p.to !== "/sustainability").map((page) => (
+                    <Route
+                      key={page.to}
+                      path={page.to}
+                      element={<RestaurantInfoPage pageKey={page.key} />}
+                    />
+                  ))}
                   <Route
-                    key={page.to}
-                    path={page.to}
-                    element={<RestaurantInfoPage pageKey={page.key} />}
+                    path="/admin"
+                    element={
+                      <ProtectedRoute allowedRoles={["admin", "manager", "chef", "cashier", "waiter"]}>
+                        <Admin />
+                      </ProtectedRoute>
+                    }
                   />
-                ))}
-                <Route
-                  path="/admin"
-                  element={
-                    <ProtectedRoute adminOnly>
-                      <Admin />
-                    </ProtectedRoute>
-                  }
-                />
-              </Routes>
-            </main>
-            <Footer />
-            <Chatbot />
-            <GlobalFeatures />
-            <Toaster theme="dark" position="top-right" richColors />
-          </div>
+                  <Route path="*" element={<Navigate to="/" replace />} />
+                </Routes>
+              </main>
+              <Footer />
+              <Chatbot />
+              <GlobalFeatures />
+              <Toaster theme="dark" position="top-right" richColors />
+            </div>
+          </CartProvider>
         </ThemeProvider>
       </BrowserRouter>
     </AuthProvider>

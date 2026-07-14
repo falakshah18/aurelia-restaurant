@@ -97,12 +97,13 @@ export default function Login() {
     e.preventDefault();
     setBusy(true);
     try {
-      await new Promise((r) => setTimeout(r, 1000));
+      await new Promise((r) => setTimeout(r, 800));
+      toast.success("If an account exists with that email, we've sent reset instructions.");
       setForgotSent(true);
-      setBusy(false);
     } catch {
+      toast.error("Something went wrong. Please try again.");
+    } finally {
       setBusy(false);
-      toast.error("Something went wrong.");
     }
   };
 

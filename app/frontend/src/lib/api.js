@@ -1,7 +1,5 @@
 import axios from "axios";
 
-// With the dev proxy, /api/* is forwarded to the backend on the same origin.
-// In production, set REACT_APP_BACKEND_URL to your actual backend domain.
 const BASE =
   process.env.REACT_APP_BACKEND_URL &&
   process.env.REACT_APP_BACKEND_URL !== "http://localhost:3000"
@@ -14,6 +12,28 @@ export const api = axios.create({
   baseURL: API,
   withCredentials: true,
 });
+
+let _refreshFn = null;
+export function setRefreshFn(fn) {
+  _refreshFn = fn;
+}
+
+api.interceptors.response.use(
+  (response) => response,
+  async (error) => {
+    const original = error.config;
+    if (error.response?.status === 401 && !original._retry && _refreshFn) {
+      original._retry = true;
+      try {
+        const result = await _refreshFn();
+        if (result.ok) {
+          return api(original);
+        }
+      } catch {}
+    }
+    return Promise.reject(error);
+  }
+);
 
 export function formatApiError(detail) {
   if (detail == null) return "Something went wrong. Please try again.";

@@ -1,5 +1,7 @@
 import { useEffect, useState } from "react";
 import { api } from "@/lib/api";
+import { useCart } from "@/context/CartContext";
+import { ShoppingBag } from "lucide-react";
 
 import { Sun, Moon, Coffee } from "lucide-react";
 
@@ -86,6 +88,7 @@ export default function MenuPage() {
   const [items, setItems] = useState([]);
   const [cat, setCat] = useState("All");
   const [meal, setMeal] = useState("");
+  const { addItem } = useCart();
 
   useEffect(() => {
     api.get("/menu/smart")
@@ -170,6 +173,14 @@ export default function MenuPage() {
                   </span>
                 )}
                 <p className="text-base text-white/62 mt-4 leading-relaxed">{m.description}</p>
+                <button
+                  data-testid={`add-to-cart-${m.id}`}
+                  onClick={() => addItem({ menu_item_id: m.id, name: m.name, price: m.price, image: m.image })}
+                  className="mt-4 btn-gold btn-gold-solid w-full flex items-center justify-center gap-2"
+                >
+                  <ShoppingBag size={16} />
+                  <span>Add to Cart</span>
+                </button>
               </div>
             </div>
           ))}

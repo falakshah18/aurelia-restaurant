@@ -32,6 +32,10 @@
 
 * { box-sizing: border-box; }
 
+img {
+  background-color: #161412;
+}
+
 html { scroll-behavior: smooth; }
 
 body {

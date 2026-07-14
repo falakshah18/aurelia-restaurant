@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { api } from "@/lib/api";
+import { api, formatApiError } from "@/lib/api";
 import { toast } from "sonner";
 import { Clock, Users, MapPin } from "lucide-react";
 
@@ -12,11 +12,13 @@ export default function WaitlistPage() {
     e.preventDefault();
     setBusy(true);
     try {
-      await api.post("/waitlist", f);
+      const payload = { ...f };
+      if (!payload.email) delete payload.email;
+      await api.post("/waitlist", payload);
       toast.success("You're on the list!");
       setDone(true);
     } catch (err) {
-      toast.error("Something went wrong");
+      toast.error(formatApiError(err.response?.data?.detail) || "Something went wrong");
     }
     setBusy(false);
   };
